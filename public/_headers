@@ -1,0 +1,15 @@
+# Prevent index.html and the service worker file from being cached anywhere
+# (browser, CDN, Bolt's edge). Without this, deployments can take a long time
+# to reach users even with the in-app update banner, since the entry point
+# itself might be served stale.
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/registerSW.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/manifest.webmanifest
+  Cache-Control: no-cache, no-store, must-revalidate
