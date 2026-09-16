@@ -1,0 +1,2 @@
+[functions.complete-session]
+verify_jwt = false

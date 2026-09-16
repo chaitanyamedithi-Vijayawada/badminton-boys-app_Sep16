@@ -7,6 +7,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Explicit asset list — NOT ['**/*']. The greedy glob was scooping up
+      // Netlify's `_headers` file into the precache manifest; that file 404s
+      // when the service worker fetches it, which failed precaching and blocked
+      // the new SW from installing (so update banners never fired and users had
+      // to hard-refresh). Listing real assets only avoids that.
       includeAssets: [
         'icon-48.png', 'icon-72.png', 'icon-96.png', 'icon-144.png',
         'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png',
@@ -20,10 +25,13 @@ export default defineConfig({
         'fonts/**/*',
       ],
       workbox: {
+        // Core background updating controls
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}'],
+        
+        // Static Asset cache policies
         runtimeCaching: [
           {
             urlPattern: /\/fonts\/.*\.woff2$/,
@@ -32,7 +40,7 @@ export default defineConfig({
               cacheName: 'fonts-cache',
               expiration: {
                 maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
               },
             },
           },
@@ -47,10 +55,28 @@ export default defineConfig({
         background_color: '#0f172a',
         theme_color: '#22d3ee',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          {
+            src: 'icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'icon-192-maskable.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: 'icon-512-maskable.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
     }),

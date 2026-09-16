@@ -261,7 +261,8 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
             position: 'fixed', inset: 0, zIndex: 9999,
             background: 'rgba(0,0,0,0.8)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 16, overflowY: 'auto',
+            padding: 16,
+            overflowY: 'auto',
           }}
           onClick={closeModal}
         >
@@ -271,7 +272,8 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
               background: '#0f172a', border: '1px solid #1e293b',
               borderRadius: 20, padding: 24, width: '100%', maxWidth: 320,
               display: 'flex', flexDirection: 'column', gap: 16,
-              margin: 'auto', position: 'relative',
+              margin: 'auto',
+              position: 'relative',
             }}
           >
      {/* Player info */}

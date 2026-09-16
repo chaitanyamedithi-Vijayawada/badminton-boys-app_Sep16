@@ -2,25 +2,77 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/badminton-logo.png" type="image/png" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0f172a" />
-    <meta name="description" content="Badminton Boys session management app" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="apple-touch-icon" sizes="57x57" href="/apple-touch-icon-57x57.png" />
-    <link rel="apple-touch-icon" sizes="60x60" href="/apple-touch-icon-60x60.png" />
-    <link rel="apple-touch-icon" sizes="72x72" href="/apple-touch-icon-72x72.png" />
-    <link rel="apple-touch-icon" sizes="76x76" href="/apple-touch-icon-76x76.png" />
-    <link rel="apple-touch-icon" sizes="114x114" href="/apple-touch-icon-114x114.png" />
-    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png" />
-    <link rel="apple-touch-icon" sizes="144x144" href="/apple-touch-icon-144x144.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167x167.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Badminton Boys</title>
-  </head>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/17136e7b-a3eb-407f-a161-d5cc2705afab.png" />
+
+    <!-- PWA Manifest (Android) -->
+    
+    <link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#040e10" />
+
+    <!-- iOS PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Badminton Boys" />
+    <link rel="apple-touch-icon" href="/17136e7b-a3eb-407f-a161-d5cc2705afab.png" />
+
+    <!-- Meta -->
+    <meta name="description" content="Badminton Boys — Session scheduling, payments and group management" />
+    <meta property="og:image" content="https://bolt.new/static/og_default.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
+</head>
   <body>
     <div id="root"></div>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      // OneSignal (push notifications) is strictly optional. It must NEVER be
+      // able to break the app — if init fails (e.g. a domain mismatch in the
+      // OneSignal dashboard, or the SDK not loading), we swallow the error and
+      // carry on. Login and every other feature work without it.
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        try {
+          await OneSignal.init({
+            appId: "d4b596d7-2437-46e4-b883-cf06b43bc590",
+            notifyButton: { enable: false },
+            allowLocalhostAsSecureOrigin: true,
+            promptOptions: {
+              slidedown: {
+                prompts: [{
+                  type: "push",
+                  autoPrompt: true,
+                  text: {
+                    actionMessage: "Get notified about sessions and updates!",
+                    acceptButton: "Allow",
+                    cancelButton: "No thanks"
+                  },
+                  delay: { pageViews: 1, timeDelay: 5 }
+                }]
+              }
+            }
+          });
+        } catch (e) {
+          console.warn("OneSignal init skipped:", e);
+        }
+      });
+      // Catch any async rejection OneSignal throws outside our try/catch so it
+      // can't surface as an unhandled error that disrupts the app.
+      window.addEventListener("unhandledrejection", function (ev) {
+        var msg = ev && ev.reason && (ev.reason.message || String(ev.reason));
+        if (msg && msg.indexOf("Can only be used on") !== -1) {
+          ev.preventDefault(); // OneSignal domain mismatch — harmless, ignore
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

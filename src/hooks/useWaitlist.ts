@@ -19,7 +19,7 @@ export interface UseWaitlistResult extends WaitlistResult {
   // True if this player name (as a member) is in the waitlist.
   isWaitlisted: (name: string) => boolean;
   // Total attendee count (accepted + waitlisted) so callers can display
-  // "12/20" style badges without recomputing
+  // "12/20" style badges without recomputing.
   totalVoters: number;
 }
 

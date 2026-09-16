@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Badminton Boys — Theme Previews</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #111;
+    color: #fff;
+    padding: 40px 24px;
+  }
+  .page-title {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .page-sub {
+    text-align: center;
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 48px;
+  }
+  .themes-row {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .theme-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .theme-label {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .theme-desc {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    max-width: 300px;
+    line-height: 1.5;
+  }
+
+  /* ─────────────────────────────────────────
+     PHONE FRAME
+  ───────────────────────────────────────── */
+  .phone {
+    width: 375px;
+    height: 780px;
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+  }
+  .screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ═══════════════════════════════════════
+     THEME A — Current Neon Dark (unchanged)
+  ═══════════════════════════════════════ */
+  .a-phone { background: #020617; }
+
+  .a-header {
+    padding: 16px 20px 12px;
+    background: rgba(2,6,23,0.9);
+    border-bottom: 1px solid rgba(34,211,238,0.3);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .a-header-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #22d3ee;
+    letter-spacing: -0.5px;
+    text-shadow: 0 0 20px rgba(34,211,238,0.6);
+  }
+  .a-header-admins {
+    display: flex;
+    gap: 8px;
+  }
+  .a-admin-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(15,23,42,0.8);
+    border: 1px solid rgba(34,211,238,0.2);
+    border-radius: 20px;
+    padding: 3px 8px 3px 3px;
+  }
+  .a-admin-avatar {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #020617;
+  }
+  .a-admin-name { font-size: 10px; color: #94a3b8; }
+
+  .a-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scrollbar-width: none;
+  }
+  .a-card {
+    background: rgba(15,23,42,0.8);
+    border: 1px solid rgba(30,41,59,0.8);
+    border-radius: 16px;
+    padding: 14px;
+    backdrop-filter: blur(8px);
+  }
+  .a-card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 6px;
+  }
+
+  .a-zelle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .a-zelle-text { font-size: 13px; color: #22d3ee; }
+  .a-zelle-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: rgba(34,211,238,0.1);
+    border: 1px solid rgba(34,211,238,0.2);
+    display: flex; align-items: center; justify-content: center;
+    color: #22d3ee; font-size: 13px;
+  }
+
+  .a-balance-card { border-color: rgba(52,211,153,0.4); }
+  .a-balance-row { display: flex; align-items: center; justify-content: space-between; }
+  .a-balance-label { font-size: 11px; color: #64748b; }
+  .a-balance-name { font-size: 13px; color: #e2e8f0; font-weight: 600; }
+  .a-balance-amount { font-size: 28px; font-weight: 800; color: #34d399; text-shadow: 0 0 16px rgba(52,211,153,0.4); }
+  .a-balance-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  .a-day-tabs { display: flex; gap: 8px; }
+  .a-day-tab {
+    flex: 1; padding: 8px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .a-day-tab.active {
+    background: rgba(34,211,238,0.15);
+    border-color: rgba(34,211,238,0.4);
+    color: #22d3ee;
+    box-shadow: 0 0 12px rgba(34,211,238,0.15);
+  }
+  .a-day-tab.inactive { background: transparent; border-color: #1e293b; color: #475569; }
+
+  .a-session-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .a-session-day { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+  .a-session-date { font-size: 11px; color: #64748b; margin-top: 1px; }
+  .a-status-badge {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 10px; font-weight: 600;
+    background: rgba(34,211,238,0.15);
+    border: 1px solid rgba(34,211,238,0.3);
+    color: #22d3ee;
+  }
+
+  .a-courts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .a-court-tag {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(34,211,238,0.08);
+    border: 1px solid rgba(34,211,238,0.2);
+    color: #22d3ee;
+  }
+
+  .a-progress-label { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .a-progress-bar { height: 5px; background: rgba(30,41,59,0.8); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .a-progress-fill {
+    height: 100%;
+    width: 65%;
+    background: linear-gradient(90deg, #22d3ee, #a3e635);
+    border-radius: 99px;
+    box-shadow: 0 0 8px rgba(34,211,238,0.5);
+  }
+
+  .a-vote-row { display: flex; gap: 8px; margin-top: 10px; }
+  .a-btn {
+    flex: 1; padding: 9px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .a-btn-going {
+    background: rgba(34,211,238,0.2);
+    border-color: rgba(34,211,238,0.5);
+    color: #22d3ee;
+    box-shadow: 0 0 12px rgba(34,211,238,0.15);
+  }
+  .a-btn-out { background: transparent; border-color: #1e293b; color: #475569; }
+
+  .a-attendance-header { font-size: 10px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .a-attendee-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .a-attendee-num { font-size: 11px; color: #475569; width: 14px; }
+  .a-attendee-av {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700;
+  }
+  .a-attendee-name { font-size: 12px; color: #cbd5e1; }
+
+  .a-cost-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .a-cost-label { font-size: 11px; color: #64748b; }
+  .a-cost-val { font-size: 13px; font-weight: 700; color: #22d3ee; }
+
+  .a-nav {
+    display: flex;
+    background: linear-gradient(180deg, #0c1425, #0f1a2e);
+    border-top: 1px solid rgba(34,211,238,0.2);
+    box-shadow: 0 -4px 20px rgba(34,211,238,0.08);
+    padding: 8px 4px 12px;
+    flex-shrink: 0;
+  }
+  .a-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .a-nav-icon-wrap {
+    width: 32px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    font-size: 16px;
+    position: relative;
+  }
+  .a-nav-icon-wrap.active { background: rgba(255,255,255,0.08); }
+  .a-nav-icon-wrap.active::before {
+    content: '';
+    position: absolute;
+    top: -8px; left: 50%; transform: translateX(-50%);
+    width: 16px; height: 2px;
+    border-radius: 99px;
+  }
+  .a-nav-label { font-size: 9px; font-weight: 500; }
+  .a-nav-item:nth-child(1) .a-nav-label,
+  .a-nav-item:nth-child(1) .a-nav-icon-wrap.active { color: #22d3ee; }
+  .a-nav-item:nth-child(1) .active::before { background: #22d3ee; }
+  .a-nav-item:nth-child(2) .a-nav-label { color: #475569; }
+  .a-nav-item:nth-child(3) .a-nav-label { color: #475569; }
+  .a-nav-item:nth-child(4) .a-nav-label { color: #475569; }
+  .a-nav-item:nth-child(5) .a-nav-label { color: #475569; }
+  .a-nav-item:nth-child(6) .a-nav-label { color: #475569; }
+
+  /* ═══════════════════════════════════════
+     THEME B — Clean Sports / Light
+  ═══════════════════════════════════════ */
+  .b-phone { background: #f5f5f5; }
+
+  .b-header {
+    padding: 16px 20px 14px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .b-header-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #111827;
+    letter-spacing: -0.5px;
+  }
+  .b-header-title span { color: #0ea5e9; }
+  .b-header-admins { display: flex; gap: 6px; }
+  .b-admin-pill {
+    display: flex; align-items: center; gap: 5px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 20px;
+    padding: 3px 8px 3px 3px;
+  }
+  .b-admin-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: 700; color: #fff;
+  }
+  .b-admin-name { font-size: 10px; color: #0369a1; font-weight: 600; }
+
+  .b-content {
+    flex: 1; overflow-y: auto;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: none;
+    background: #f5f5f5;
+  }
+  .b-card {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
+  }
+  .b-card-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: #9ca3af; margin-bottom: 8px;
+  }
+
+  .b-zelle { display: flex; align-items: center; justify-content: space-between; }
+  .b-zelle-left { display: flex; align-items: center; gap: 8px; }
+  .b-zelle-icon-box {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px;
+  }
+  .b-zelle-title { font-size: 13px; font-weight: 700; color: #111827; }
+  .b-zelle-email { font-size: 11px; color: #6b7280; }
+  .b-copy-btn {
+    padding: 5px 10px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    font-size: 11px; font-weight: 600; color: #0284c7;
+    cursor: pointer;
+  }
+
+  .b-balance-card {}
+  .b-balance-inner { display: flex; align-items: center; justify-content: space-between; }
+  .b-balance-left {}
+  .b-balance-label { font-size: 11px; color: #9ca3af; }
+  .b-balance-name { font-size: 15px; font-weight: 700; color: #111827; }
+  .b-balance-amount { font-size: 32px; font-weight: 800; color: #16a34a; line-height: 1; margin-top: 2px; }
+  .b-balance-badge {
+    padding: 6px 12px; border-radius: 10px;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    font-size: 11px; font-weight: 700; color: #15803d;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .b-day-tabs { display: flex; gap: 6px; }
+  .b-day-tab {
+    flex: 1; padding: 8px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .b-day-tab.active { background: #0ea5e9; color: #fff; box-shadow: 0 4px 12px rgba(14,165,233,0.3); }
+  .b-day-tab.inactive { background: #f9fafb; border-color: #e5e7eb; color: #6b7280; }
+
+  .b-session-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .b-session-day { font-size: 16px; font-weight: 700; color: #111827; }
+  .b-session-time { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .b-status-badge {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+    background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669;
+  }
+
+  .b-courts { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .b-court-tag {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    background: #f0f9ff; border: 1px solid #bae6fd; color: #0284c7;
+  }
+
+  .b-progress-label { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+  .b-progress-bar { height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .b-progress-fill { height: 100%; width: 65%; background: linear-gradient(90deg, #0ea5e9, #22d3ee); border-radius: 99px; }
+
+  .b-vote-row { display: flex; gap: 8px; margin-top: 10px; }
+  .b-btn {
+    flex: 1; padding: 10px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 700;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .b-btn-going { background: #0ea5e9; color: #fff; box-shadow: 0 4px 12px rgba(14,165,233,0.3); }
+  .b-btn-out { background: #f9fafb; border-color: #e5e7eb; color: #6b7280; }
+
+  .b-attendance-header { font-size: 10px; color: #9ca3af; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .b-attendee-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .b-attendee-num { font-size: 11px; color: #d1d5db; width: 14px; }
+  .b-attendee-av {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+  }
+  .b-attendee-name { font-size: 12px; color: #374151; font-weight: 500; }
+
+  .b-cost-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f4f6; }
+  .b-cost-label { font-size: 12px; color: #9ca3af; }
+  .b-cost-val { font-size: 15px; font-weight: 800; color: #0ea5e9; }
+
+  .b-nav {
+    display: flex;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+    padding: 8px 4px 12px;
+    flex-shrink: 0;
+  }
+  .b-nav-item {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  .b-nav-icon-wrap {
+    width: 34px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 17px;
+  }
+  .b-nav-icon-wrap.active { background: #e0f2fe; }
+  .b-nav-label { font-size: 9px; font-weight: 600; }
+  .b-nav-item.active .b-nav-label { color: #0ea5e9; }
+  .b-nav-item.active .b-nav-icon-wrap { color: #0ea5e9; }
+  .b-nav-item:not(.active) .b-nav-label { color: #9ca3af; }
+  .b-nav-item:not(.active) .b-nav-icon-wrap { color: #d1d5db; }
+
+  /* ═══════════════════════════════════════
+     THEME C — Earthy Warm / Premium
+  ═══════════════════════════════════════ */
+  .c-phone { background: #1a1410; }
+
+  .c-header {
+    padding: 16px 20px 14px;
+    background: #1a1410;
+    border-bottom: 1px solid rgba(217,177,100,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .c-header-title { font-size: 20px; font-weight: 800; color: #f5efe0; letter-spacing: -0.5px; }
+  .c-header-title span { color: #d9b164; }
+  .c-header-admins { display: flex; gap: 6px; }
+  .c-admin-pill {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(217,177,100,0.08);
+    border: 1px solid rgba(217,177,100,0.2);
+    border-radius: 20px;
+    padding: 3px 8px 3px 3px;
+  }
+  .c-admin-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px; font-weight: 700; color: #1a1410;
+  }
+  .c-admin-name { font-size: 10px; color: #d9b164; font-weight: 600; }
+
+  .c-content {
+    flex: 1; overflow-y: auto;
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: none;
+  }
+  .c-card {
+    background: #231e17;
+    border: 1px solid rgba(217,177,100,0.12);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .c-card-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: rgba(217,177,100,0.5); margin-bottom: 8px;
+  }
+
+  .c-zelle { display: flex; align-items: center; justify-content: space-between; }
+  .c-zelle-left { display: flex; align-items: center; gap: 8px; }
+  .c-zelle-icon-box {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: rgba(217,177,100,0.15);
+    border: 1px solid rgba(217,177,100,0.25);
+    display: flex; align-items: center; justify-content: center;
+    color: #d9b164; font-size: 15px;
+  }
+  .c-zelle-title { font-size: 13px; font-weight: 700; color: #f5efe0; }
+  .c-zelle-email { font-size: 11px; color: rgba(245,239,224,0.4); }
+  .c-copy-btn {
+    padding: 5px 10px;
+    background: rgba(217,177,100,0.1);
+    border: 1px solid rgba(217,177,100,0.25);
+    border-radius: 8px;
+    font-size: 11px; font-weight: 600; color: #d9b164;
+    cursor: pointer;
+  }
+
+  .c-balance-inner { display: flex; align-items: center; justify-content: space-between; }
+  .c-balance-label { font-size: 11px; color: rgba(245,239,224,0.4); }
+  .c-balance-name { font-size: 15px; font-weight: 700; color: #f5efe0; }
+  .c-balance-amount { font-size: 32px; font-weight: 800; color: #6dbf7e; line-height: 1; margin-top: 2px; }
+  .c-balance-badge {
+    padding: 6px 12px; border-radius: 10px;
+    background: rgba(109,191,126,0.1); border: 1px solid rgba(109,191,126,0.25);
+    font-size: 11px; font-weight: 700; color: #6dbf7e;
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  .c-day-tabs { display: flex; gap: 6px; }
+  .c-day-tab {
+    flex: 1; padding: 8px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .c-day-tab.active {
+    background: rgba(217,177,100,0.15);
+    border-color: rgba(217,177,100,0.35);
+    color: #d9b164;
+  }
+  .c-day-tab.inactive { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); color: rgba(245,239,224,0.3); }
+
+  .c-session-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .c-session-day { font-size: 16px; font-weight: 700; color: #f5efe0; }
+  .c-session-time { font-size: 11px; color: rgba(245,239,224,0.4); margin-top: 1px; }
+  .c-status-badge {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+    background: rgba(109,191,126,0.1); border: 1px solid rgba(109,191,126,0.25); color: #6dbf7e;
+  }
+
+  .c-courts { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .c-court-tag {
+    padding: 3px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    background: rgba(217,177,100,0.08); border: 1px solid rgba(217,177,100,0.2); color: #d9b164;
+  }
+
+  .c-progress-label { display: flex; justify-content: space-between; font-size: 11px; color: rgba(245,239,224,0.35); margin-bottom: 4px; }
+  .c-progress-bar { height: 5px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .c-progress-fill { height: 100%; width: 65%; background: linear-gradient(90deg, #d9b164, #f0d080); border-radius: 99px; }
+
+  .c-vote-row { display: flex; gap: 8px; margin-top: 10px; }
+  .c-btn {
+    flex: 1; padding: 10px 0;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 700;
+    text-align: center; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .c-btn-going {
+    background: rgba(217,177,100,0.15);
+    border-color: rgba(217,177,100,0.4);
+    color: #d9b164;
+  }
+  .c-btn-out { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); color: rgba(245,239,224,0.3); }
+
+  .c-attendance-header { font-size: 10px; color: rgba(245,239,224,0.3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .c-attendee-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .c-attendee-num { font-size: 11px; color: rgba(245,239,224,0.25); width: 14px; }
+  .c-attendee-av {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #1a1410;
+  }
+  .c-attendee-name { font-size: 12px; color: rgba(245,239,224,0.7); font-weight: 500; }
+
+  .c-cost-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .c-cost-label { font-size: 12px; color: rgba(245,239,224,0.35); }
+  .c-cost-val { font-size: 15px; font-weight: 800; color: #d9b164; }
+
+  .c-nav {
+    display: flex;
+    background: #1a1410;
+    border-top: 1px solid rgba(217,177,100,0.15);
+    padding: 8px 4px 12px;
+    flex-shrink: 0;
+  }
+  .c-nav-item {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  .c-nav-icon-wrap {
+    width: 34px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 17px;
+  }
+  .c-nav-icon-wrap.active { background: rgba(217,177,100,0.12); }
+  .c-nav-label { font-size: 9px; font-weight: 600; }
+  .c-nav-item.active .c-nav-label { color: #d9b164; }
+  .c-nav-item.active .c-nav-icon-wrap { color: #d9b164; }
+  .c-nav-item:not(.active) .c-nav-label { color: rgba(245,239,224,0.25); }
+  .c-nav-item:not(.active) .c-nav-icon-wrap { color: rgba(245,239,224,0.2); }
+
+  /* SVG icons inline */
+  svg { display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Badminton Boys — Theme Previews</div>
+<div class="page-sub">3 visual directions · Home screen shown · Import into Figma via File › Import</div>
+
+<div class="themes-row">
+
+  <!-- ────────────────────────────────────
+       THEME A: Current Neon Dark
+  ──────────────────────────────────────── -->
+  <div class="theme-col">
+    <div class="theme-label" style="color:#22d3ee">A — Neon Dark</div>
+    <div class="theme-desc">Current style. Cyber glow with cyan, lime &amp; pink accents on midnight background.</div>
+
+    <div class="phone a-phone">
+      <div class="screen">
+
+        <!-- Header -->
+        <div class="a-header">
+          <div class="a-header-title">Badminton Boys</div>
+          <div class="a-header-admins">
+            <div class="a-admin-pill">
+              <div class="a-admin-avatar" style="background:#34d399">ES</div>
+              <div class="a-admin-name">Eswar</div>
+            </div>
+            <div class="a-admin-pill">
+              <div class="a-admin-avatar" style="background:#22d3ee">AR</div>
+              <div class="a-admin-name">Arun</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="a-content">
+
+          <!-- Zelle -->
+          <div class="a-card">
+            <div class="a-zelle">
+              <span class="a-zelle-text">Pay via Zelle: arun.gedela@gmail.com</span>
+              <div class="a-zelle-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Balance -->
+          <div class="a-card a-balance-card">
+            <div class="a-balance-row">
+              <div>
+                <div class="a-balance-label">My Balance</div>
+                <div class="a-balance-name">Pradeep</div>
+                <div class="a-balance-amount">$42.50</div>
+                <div class="a-balance-sub">Good standing</div>
+              </div>
+              <div></div>
+            </div>
+          </div>
+
+          <!-- Day tabs -->
+          <div class="a-day-tabs">
+            <div class="a-day-tab active">Saturday</div>
+            <div class="a-day-tab inactive">Tuesday</div>
+          </div>
+
+          <!-- Session card -->
+          <div class="a-card">
+            <div class="a-session-header">
+              <div>
+                <div class="a-session-day">Saturday</div>
+                <div class="a-session-date">May 17, 2026 · 7:00 – 9:00 AM</div>
+              </div>
+              <div class="a-status-badge">Open</div>
+            </div>
+
+            <div class="a-courts">
+              <div class="a-court-tag">Court 1</div>
+              <div class="a-court-tag">Court 2</div>
+              <div class="a-court-tag">Court 3</div>
+            </div>
+
+            <div class="a-progress-label">
+              <span>8 going</span>
+              <span>Max 12</span>
+            </div>
+            <div class="a-progress-bar"><div class="a-progress-fill"></div></div>
+
+            <div class="a-vote-row">
+              <div class="a-btn a-btn-going">✓ Going</div>
+              <div class="a-btn a-btn-out">Not coming</div>
+            </div>
+
+            <div class="a-cost-row">
+              <span class="a-cost-label">Est. cost per person</span>
+              <span class="a-cost-val">$4.50</span>
+            </div>
+          </div>
+
+          <!-- Attendance -->
+          <div class="a-card">
+            <div class="a-attendance-header">Attendance (8)</div>
+            <div class="a-attendee-row"><span class="a-attendee-num">1.</span><div class="a-attendee-av" style="background:rgba(34,211,238,0.2);color:#22d3ee">PR</div><span class="a-attendee-name">Pradeep</span></div>
+            <div class="a-attendee-row"><span class="a-attendee-num">2.</span><div class="a-attendee-av" style="background:rgba(163,230,53,0.2);color:#a3e635">ES</div><span class="a-attendee-name">Eswar</span></div>
+            <div class="a-attendee-row"><span class="a-attendee-num">3.</span><div class="a-attendee-av" style="background:rgba(244,114,182,0.2);color:#f472b6">AR</div><span class="a-attendee-name">Arun</span></div>
+            <div class="a-attendee-row"><span class="a-attendee-num">4.</span><div class="a-attendee-av" style="background:rgba(251,191,36,0.2);color:#fbbf24">KA</div><span class="a-attendee-name">Karthik</span></div>
+            <div class="a-attendee-row"><span class="a-attendee-num">5.</span><div class="a-attendee-av" style="background:rgba(52,211,153,0.2);color:#34d399">VI</div><span class="a-attendee-name">Vijay</span></div>
+          </div>
+
+        </div><!-- /content -->
+
+        <!-- Bottom Nav -->
+        <div class="a-nav">
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap active" style="color:#22d3ee">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#22d3ee">Home</div>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap" style="color:#475569">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/><path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/><path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/><path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/><path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/><path d="M15.5 19H14v1.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/><path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/><path d="M8.5 5H10V3.5C10 2.67 9.33 2 8.5 2S7 2.67 7 3.5 7.67 5 8.5 5z"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#a3e635">Match</div>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap" style="color:#475569">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#f472b6">Players</div>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap" style="color:#475569">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#34d399">Fees</div>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap" style="color:#475569">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#fbbf24">History</div>
+          </div>
+          <div class="a-nav-item">
+            <div class="a-nav-icon-wrap" style="color:#475569">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="a-nav-label" style="color:#fb7185">Admin</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────
+       THEME B: Clean Sports Light
+  ──────────────────────────────────────── -->
+  <div class="theme-col">
+    <div class="theme-label" style="color:#0ea5e9">B — Clean Sports</div>
+    <div class="theme-desc">Light, crisp UI with sky blue accent. Inspired by Nike &amp; ESPN mobile apps.</div>
+
+    <div class="phone b-phone">
+      <div class="screen">
+
+        <!-- Header -->
+        <div class="b-header">
+          <div class="b-header-title">Badminton <span>Boys</span></div>
+          <div class="b-header-admins">
+            <div class="b-admin-pill">
+              <div class="b-admin-avatar" style="background:#16a34a">ES</div>
+              <div class="b-admin-name">Eswar</div>
+            </div>
+            <div class="b-admin-pill">
+              <div class="b-admin-avatar" style="background:#0284c7">AR</div>
+              <div class="b-admin-name">Arun</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="b-content">
+
+          <!-- Zelle -->
+          <div class="b-card">
+            <div class="b-zelle">
+              <div class="b-zelle-left">
+                <div class="b-zelle-icon-box">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                </div>
+                <div>
+                  <div class="b-zelle-title">Pay via Zelle</div>
+                  <div class="b-zelle-email">arun.gedela@gmail.com</div>
+                </div>
+              </div>
+              <div class="b-copy-btn">Copy</div>
+            </div>
+          </div>
+
+          <!-- Balance -->
+          <div class="b-card">
+            <div class="b-card-label">My Balance</div>
+            <div class="b-balance-inner">
+              <div>
+                <div class="b-balance-name">Pradeep</div>
+                <div class="b-balance-amount">$42.50</div>
+              </div>
+              <div class="b-balance-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Good
+              </div>
+            </div>
+          </div>
+
+          <!-- Day tabs -->
+          <div class="b-day-tabs">
+            <div class="b-day-tab active">Saturday</div>
+            <div class="b-day-tab inactive">Tuesday</div>
+          </div>
+
+          <!-- Session card -->
+          <div class="b-card">
+            <div class="b-session-header">
+              <div>
+                <div class="b-session-day">Saturday</div>
+                <div class="b-session-time">May 17, 2026 · 7:00 – 9:00 AM</div>
+              </div>
+              <div class="b-status-badge">Open</div>
+            </div>
+
+            <div class="b-courts">
+              <div class="b-court-tag">Court 1</div>
+              <div class="b-court-tag">Court 2</div>
+              <div class="b-court-tag">Court 3</div>
+            </div>
+
+            <div class="b-progress-label">
+              <span>8 going</span>
+              <span>Max 12</span>
+            </div>
+            <div class="b-progress-bar"><div class="b-progress-fill"></div></div>
+
+            <div class="b-vote-row">
+              <div class="b-btn b-btn-going">Going</div>
+              <div class="b-btn b-btn-out">Not coming</div>
+            </div>
+
+            <div class="b-cost-row">
+              <span class="b-cost-label">Est. per person</span>
+              <span class="b-cost-val">$4.50</span>
+            </div>
+          </div>
+
+          <!-- Attendance -->
+          <div class="b-card">
+            <div class="b-attendance-header">Attendance (8)</div>
+            <div class="b-attendee-row"><span class="b-attendee-num">1.</span><div class="b-attendee-av" style="background:#0ea5e9">PR</div><span class="b-attendee-name">Pradeep</span></div>
+            <div class="b-attendee-row"><span class="b-attendee-num">2.</span><div class="b-attendee-av" style="background:#16a34a">ES</div><span class="b-attendee-name">Eswar</span></div>
+            <div class="b-attendee-row"><span class="b-attendee-num">3.</span><div class="b-attendee-av" style="background:#dc2626">AR</div><span class="b-attendee-name">Arun</span></div>
+            <div class="b-attendee-row"><span class="b-attendee-num">4.</span><div class="b-attendee-av" style="background:#d97706">KA</div><span class="b-attendee-name">Karthik</span></div>
+            <div class="b-attendee-row"><span class="b-attendee-num">5.</span><div class="b-attendee-av" style="background:#7c3aed">VI</div><span class="b-attendee-name">Vijay</span></div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="b-nav">
+          <div class="b-nav-item active">
+            <div class="b-nav-icon-wrap active">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div class="b-nav-label">Home</div>
+          </div>
+          <div class="b-nav-item">
+            <div class="b-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+            </div>
+            <div class="b-nav-label">Match</div>
+          </div>
+          <div class="b-nav-item">
+            <div class="b-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+            <div class="b-nav-label">Players</div>
+          </div>
+          <div class="b-nav-item">
+            <div class="b-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="b-nav-label">Fees</div>
+          </div>
+          <div class="b-nav-item">
+            <div class="b-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="b-nav-label">History</div>
+          </div>
+          <div class="b-nav-item">
+            <div class="b-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="b-nav-label">Admin</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────────────────────────────
+       THEME C: Warm Dark / Gold Premium
+  ──────────────────────────────────────── -->
+  <div class="theme-col">
+    <div class="theme-label" style="color:#d9b164">C — Warm Gold</div>
+    <div class="theme-desc">Warm charcoal background with gold accents. Premium club-app feel.</div>
+
+    <div class="phone c-phone">
+      <div class="screen">
+
+        <!-- Header -->
+        <div class="c-header">
+          <div class="c-header-title">Badminton <span>Boys</span></div>
+          <div class="c-header-admins">
+            <div class="c-admin-pill">
+              <div class="c-admin-avatar" style="background:#d9b164">ES</div>
+              <div class="c-admin-name">Eswar</div>
+            </div>
+            <div class="c-admin-pill">
+              <div class="c-admin-avatar" style="background:#f0d080">AR</div>
+              <div class="c-admin-name">Arun</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="c-content">
+
+          <!-- Zelle -->
+          <div class="c-card">
+            <div class="c-zelle">
+              <div class="c-zelle-left">
+                <div class="c-zelle-icon-box">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                </div>
+                <div>
+                  <div class="c-zelle-title">Pay via Zelle</div>
+                  <div class="c-zelle-email">arun.gedela@gmail.com</div>
+                </div>
+              </div>
+              <div class="c-copy-btn">Copy</div>
+            </div>
+          </div>
+
+          <!-- Balance -->
+          <div class="c-card">
+            <div class="c-card-label">My Balance</div>
+            <div class="c-balance-inner">
+              <div>
+                <div class="c-balance-name">Pradeep</div>
+                <div class="c-balance-amount">$42.50</div>
+              </div>
+              <div class="c-balance-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Good
+              </div>
+            </div>
+          </div>
+
+          <!-- Day tabs -->
+          <div class="c-day-tabs">
+            <div class="c-day-tab active">Saturday</div>
+            <div class="c-day-tab inactive">Tuesday</div>
+          </div>
+
+          <!-- Session card -->
+          <div class="c-card">
+            <div class="c-session-header">
+              <div>
+                <div class="c-session-day">Saturday</div>
+                <div class="c-session-time">May 17, 2026 · 7:00 – 9:00 AM</div>
+              </div>
+              <div class="c-status-badge">Open</div>
+            </div>
+
+            <div class="c-courts">
+              <div class="c-court-tag">Court 1</div>
+              <div class="c-court-tag">Court 2</div>
+              <div class="c-court-tag">Court 3</div>
+            </div>
+
+            <div class="c-progress-label">
+              <span>8 going</span>
+              <span>Max 12</span>
+            </div>
+            <div class="c-progress-bar"><div class="c-progress-fill"></div></div>
+
+            <div class="c-vote-row">
+              <div class="c-btn c-btn-going">Going</div>
+              <div class="c-btn c-btn-out">Not coming</div>
+            </div>
+
+            <div class="c-cost-row">
+              <span class="c-cost-label">Est. per person</span>
+              <span class="c-cost-val">$4.50</span>
+            </div>
+          </div>
+
+          <!-- Attendance -->
+          <div class="c-card">
+            <div class="c-attendance-header">Attendance (8)</div>
+            <div class="c-attendee-row"><span class="c-attendee-num">1.</span><div class="c-attendee-av" style="background:#d9b164">PR</div><span class="c-attendee-name">Pradeep</span></div>
+            <div class="c-attendee-row"><span class="c-attendee-num">2.</span><div class="c-attendee-av" style="background:#6dbf7e">ES</div><span class="c-attendee-name">Eswar</span></div>
+            <div class="c-attendee-row"><span class="c-attendee-num">3.</span><div class="c-attendee-av" style="background:#e07b54">AR</div><span class="c-attendee-name">Arun</span></div>
+            <div class="c-attendee-row"><span class="c-attendee-num">4.</span><div class="c-attendee-av" style="background:#7eb8d9">KA</div><span class="c-attendee-name">Karthik</span></div>
+            <div class="c-attendee-row"><span class="c-attendee-num">5.</span><div class="c-attendee-av" style="background:#bf7ed9">VI</div><span class="c-attendee-name">Vijay</span></div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="c-nav">
+          <div class="c-nav-item active">
+            <div class="c-nav-icon-wrap active">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div class="c-nav-label">Home</div>
+          </div>
+          <div class="c-nav-item">
+            <div class="c-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+            </div>
+            <div class="c-nav-label">Match</div>
+          </div>
+          <div class="c-nav-item">
+            <div class="c-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            </div>
+            <div class="c-nav-label">Players</div>
+          </div>
+          <div class="c-nav-item">
+            <div class="c-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="c-nav-label">Fees</div>
+          </div>
+          <div class="c-nav-item">
+            <div class="c-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="c-nav-label">History</div>
+          </div>
+          <div class="c-nav-item">
+            <div class="c-nav-icon-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="c-nav-label">Admin</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- /themes-row -->
+
+<div style="text-align:center;margin-top:48px;font-size:12px;color:#555;line-height:1.7">
+  To import into Figma: open Figma › File › Import › select this HTML file<br>
+  Or open in Chrome, screenshot each phone frame at 2x, paste into Figma as images.
+</div>
+
+</body>
+</html>
