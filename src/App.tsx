@@ -7,8 +7,8 @@ import NamePicker from './components/NamePicker';
 import ContentSkeleton from './components/ContentSkeleton';
 import PullToRefresh from './components/PullToRefresh';
 import SplashScreen from './components/SplashScreen';
+import RegularSessionAutoFinalizer from './components/RegularSessionAutoFinalizer';
 import HomeTab from './tabs/HomeTab';
-import TournamentTab from './tabs/TournamentTab';
 // Code-split: only HomeTab (the landing tab) ships in the main bundle.
 // Each other tab downloads on first visit; the PWA service worker still
 // precaches the chunks in the background for offline use.
@@ -32,7 +32,6 @@ function TabContent() {
       {activeTab === 'history' && <HistoryTab />}
       {activeTab === 'admin' && <AdminTab />}
       {activeTab === 'match' && <MatchTab />}
-      {activeTab === 'tournament' && <TournamentTab />}
     </Suspense>
   );
 }
@@ -84,6 +83,7 @@ function AppInner() {
 </PullToRefresh>
 <BottomNav />
           <Toast />
+          <RegularSessionAutoFinalizer />
           {showNamePicker && <NamePicker />}
         </div>
       </div>

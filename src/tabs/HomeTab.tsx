@@ -74,8 +74,8 @@ function parseTueHours(settings: Record<string, string>): {
 
 // ---------------------------------------------------------------------------
 // SessionCard
-// FIX: auto-finalize logic removed — RegularSessionAutoFinalizer is the sole
-//      owner of that responsibility. SessionCard only renders UI.
+// Auto-finalize lives in components/RegularSessionAutoFinalizer (fires 2h after
+// a session ends). SessionCard only renders UI + the manual finalize override.
 // ---------------------------------------------------------------------------
 function SessionCard({ day }: { day: Day }) {
   const {

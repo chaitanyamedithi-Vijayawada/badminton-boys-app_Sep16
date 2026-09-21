@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { COLORS, makeInitials, getWeekKey, getUpcomingSessionWeekKey, getCompletedWeekKey, parseCourtSplit } from '../lib/constants';
-import { isSessionEndPassed, isExtraSessionEnded } from '../lib/cutoff';
+import { getPacificNow, isExtraSessionEnded } from '../lib/cutoff';
 import { computeSessionCost, computePerPerson, computeFinalizeCharges, computeAdjustedCharges } from '../lib/sessionMath';
 import { hashPin, verifyPin } from '../lib/crypto';
 import { notifySessionComplete, sendSessionEmail, registerPlayerForNotifications } from '../lib/notifications';
@@ -459,19 +459,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Complete Session Logic ───────────────────────────────────────────────────
   const completeSession = useCallback(async (day: Day, totalCostOverride?: number) => {
-    // Guard: never finalize before the session has actually ended. Without
-    // this, an admin could finalize on Sunday/Monday (before the session date)
-    // and deduct money from balances before the session was played.
-    if (!isSessionEndPassed(day, 9, day === 'wednesday'
-      ? (Number(settings['wed_end_hour']) || 20) : 9)) {
-      showToast('Session has not ended yet — cannot finalize');
+    // Use the completed-week key so a session finalized on Sunday is recorded
+    // against the week that just ended, not the upcoming week. This prevents
+    // charges from being applied to the wrong (future) session.
+    const week = getCompletedWeekKey();
+
+    // Guard: only finalize once THIS session (the one `week` points at) has
+    // ended at least 2 hours ago. Deriving the end time from `week` itself —
+    // rather than the old isSessionEndPassed(), which rolled its target forward
+    // to next week — keeps the guard and the row's week in lockstep. That means
+    // a Saturday session can never be finalized against the *upcoming* week on
+    // Mon/Tue, and a genuinely-ended session stays finalizable through Sunday.
+    const [wy, wm, wd] = week.split('-').map(Number);
+    const sessionEnd = new Date(wy, wm - 1, wd, 9, 0, 0, 0); // Saturday 9:00 AM
+    if (day === 'wednesday') {
+      sessionEnd.setDate(sessionEnd.getDate() - 3);          // Wednesday
+      sessionEnd.setHours(Number(settings['wed_end_hour']) || 20, 0, 0, 0);
+    }
+    if (getPacificNow().getTime() < sessionEnd.getTime() + 120 * 60 * 1000) {
+      showToast('Session must end (and 2 hours pass) before it can be finalized');
       return;
     }
 
-    // Use the completed-week key so a session finalized on Sunday/Monday is
-    // recorded against the week that just ended, not the upcoming week. This
-    // prevents charges from being applied to the wrong (future) session.
-    const week = getCompletedWeekKey();
     const existing = completedSessions.find(s => s.week === week && s.day === day);
     if (existing) return;
 
@@ -586,7 +595,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return `${yy}-${mm}-${dd}`;
     })();
 
-    const { data: newSession, error: sessionErr } = await supabase.from('completed_sessions').upsert({
+    // INSERT (not upsert) so the (week,day) UNIQUE constraint acts as an atomic
+    // lock: if two clients finalize the same session at once, only the first
+    // insert succeeds; the loser gets a 23505 and bails BEFORE inserting any
+    // charges, so a session can never be double-charged.
+    const { data: newSession, error: sessionErr } = await supabase.from('completed_sessions').insert({
       week,
       day,
       session_date: sessionDate,
@@ -601,9 +614,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       per_person: perPerson,
       auto_deducted: true,
       is_extra: false,
-    }, { onConflict: 'week,day' }).select().single();
+    }).select().single();
 
     if (sessionErr || !newSession) {
+      // 23505 = unique_violation: another device/tab won the race and already
+      // finalized this session. Refresh and bail without charging again.
+      if (sessionErr?.code === '23505') { await loadCompletedSessions(); return; }
       showToast('Error completing session metadata');
       return;
     }
