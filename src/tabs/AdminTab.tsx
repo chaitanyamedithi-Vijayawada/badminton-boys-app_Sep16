@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { getWeekKey, getCompletedWeekKey, parseCourtSplit, courtSplitCourtHours, DEFAULT_COURT_SPLIT } from '../lib/constants';
 import type { CourtSplit, CourtSplitSegment } from '../lib/constants';
 import { getCurrentWeekKey, getCurrentWeekRange, isExtraSessionEnded, minutesSinceSessionEnd } from '../lib/cutoff';
-import type { Day } from '../types';
+import type { Day, Player, PlayerTransfer } from '../types';
 import PlayerAvatar from '../components/PlayerAvatar';
 
 import { notifyBroadcast, notifyTopUpConfirmed } from '../lib/notifications';
