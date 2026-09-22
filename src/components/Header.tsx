@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { uploadAvatarFor, removeAvatarFor } from '../lib/avatar';
 import { makeInitials, THEMES, getSavedTheme, applyTheme, type ThemeId } from '../lib/constants';
-import { Delete, LayoutGrid } from 'lucide-react';
+import { Delete } from 'lucide-react';
 import type { TabId } from '../types';
 
 const PAD = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
