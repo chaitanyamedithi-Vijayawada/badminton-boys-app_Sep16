@@ -1081,16 +1081,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { name, oldBalance, newBalance, guestCount };
     });
 
-    const sessionDayName = new Date(session.session_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
+    // Name the email by the session's title (e.g. "Ladies Badminton"), and use
+    // the real session_date for `week` — passing the internal extraWeekKey
+    // ("extra-<id>-<date>") made the template's new Date(week) render "Invalid
+    // Date". This matches the finalize-extra-sessions cron function.
     notifySessionComplete({
-      day: sessionDayName, week: extraWeekKey,
+      day: session.title, week: session.session_date,
       perPerson, totalCost: cs.total_cost ?? 0,
       courtsCount: cs.courts_count ?? 1, players: notifyPlayers,
     });
 
     const result = await sendSessionEmail({
-      day: sessionDayName, week: extraWeekKey,
+      day: session.title, week: session.session_date,
       sessionDate: session.session_date,
       sessionTime: `${session.start_time} – ${session.end_time}`,
       hoursPlayed: (cs.courts_count ?? 1) * (cs.session_hours ?? 2),
