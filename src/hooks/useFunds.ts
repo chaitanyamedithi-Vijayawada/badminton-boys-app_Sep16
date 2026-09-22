@@ -165,17 +165,22 @@ export function useFunds(currentUser: CurrentUser | null) {
       .eq('type', 'adjustment')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    const mapped = (data ?? []).map((t: Record<string, unknown> & { players?: { name: string } }) => ({
-      id: t.id as string,
-      player_id: t.player_id as string,
-      type: t.type as string,
-      amount: Number(t.amount),
-      created_at: t.created_at as string,
-      note: t.note as string | undefined,
-      session_id: t.session_id as string | undefined,
-      misc_charge_id: t.misc_charge_id as string | undefined,
-      player_name: t.players?.name,
-    }));
+    const mapped = (data ?? []).map((t: Record<string, unknown> & { players?: { name: string } | { name: string }[] | null }) => {
+      // Supabase types a to-one embedded relation (players!inner) as an array,
+      // though at runtime it comes back as a single object — normalize both.
+      const playerRel = Array.isArray(t.players) ? t.players[0] : t.players;
+      return {
+        id: t.id as string,
+        player_id: t.player_id as string,
+        type: t.type as string,
+        amount: Number(t.amount),
+        created_at: t.created_at as string,
+        note: t.note as string | undefined,
+        session_id: t.session_id as string | undefined,
+        misc_charge_id: t.misc_charge_id as string | undefined,
+        player_name: playerRel?.name,
+      };
+    });
     setAllAdjustments(mapped);
   }, []);
 
