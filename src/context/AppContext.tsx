@@ -860,15 +860,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cs = candidates[0];
     if (!cs) { showToast('No completed session found for ' + day); return; }
 
-    const { data: txns } = await supabase
-      .from('transactions').select('player_id, amount')
-      .eq('session_id', String(cs.id)).eq('type', 'match_charge');
-
-    const chargeMap: Record<string, number> = {};
-    (txns ?? []).forEach((t: { player_id: number | null; amount: number }) => {
-      if (t.player_id != null) chargeMap[String(t.player_id)] = Math.abs(t.amount);
-    });
-
     const { data: freshEmails } = await supabase.from('players').select('name, email');
     const emailMap: Record<string, string> = {};
     (freshEmails ?? []).forEach((p: { name: string; email?: string | null }) => {
@@ -891,7 +882,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const notifyPlayers = sessionPlayers.map(name => {
       const playerObj = players.find(p => p.name === name);
       const guestCount = sessionGuests.filter(g => g.brought_by === name).length;
-      const charge = playerObj ? (chargeMap[String(playerObj.id)] ?? perPerson * (1 + guestCount)) : perPerson;
       const newBalance = playerObj?.balance ?? 0;
       const totalDeducted = perPerson * (1 + guestCount);
       const oldBalance = newBalance + totalDeducted;
@@ -1029,7 +1019,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Find completed_sessions row. Try the full week key first, then fall
     // back to the plain-date format used by older finalisation code.
     const extraWeekKey = `extra-${sessionId}-${session.session_date}`;
-    let { data: csRows } = await supabase
+    const { data: csRows } = await supabase
       .from('completed_sessions')
       .select('id, per_person, total_cost, courts_count, session_hours, players_count, guests')
       .eq('week', extraWeekKey)
