@@ -151,8 +151,12 @@ export function getUpcomingSessionWeekKey(day: 'saturday' | 'wednesday'): string
   if (day === 'saturday') sessionEnd.setHours(9, 0, 0, 0);
   else                    sessionEnd.setHours(20, 0, 0, 0);
 
-  // Roll forward the week's Saturday if this day's session has ended.
-  if (now.getTime() >= sessionEnd.getTime()) {
+  // Roll forward the week's Saturday only once this day's session ended at
+  // least 2 hours ago — i.e. when it finalizes. Keeping the just-played
+  // session in view for the full 2-hour window is what makes the review/edit
+  // window usable (add/remove players, then finalize) instead of the session
+  // vanishing the moment it ends.
+  if (now.getTime() >= sessionEnd.getTime() + 2 * 60 * 60 * 1000) {
     thisSat.setDate(thisSat.getDate() + 7);
   }
   const yyyy = thisSat.getFullYear();
