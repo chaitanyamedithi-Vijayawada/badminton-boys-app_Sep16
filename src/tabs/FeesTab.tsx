@@ -87,6 +87,20 @@ const fmtAmt    = (n: number): string => (n >= 0 ? `$${Number(n).toFixed(2)}` : 
 const fmtSigned = (n: number): string => (n >= 0 ? `+$${Number(n).toFixed(2)}` : `-$${Math.abs(Number(n)).toFixed(2)}`);
 const fmtHrs    = (n: number): string => `${Number(n).toFixed(1)} hrs`;
 
+// Highlights the "balance $X → $Y" checkpoint stamped on top-up notes so the
+// numbers stand out from the rest of the note text.
+const highlightNote = (note: string): React.ReactNode => {
+  const m = note.match(/^(.*?)(balance\s+\$[-\d.,]+\s*→\s*\$[-\d.,]+)(.*)$/);
+  if (!m) return note;
+  return (
+    <>
+      {m[1]}
+      <span className="text-violet-300 font-semibold">{m[2]}</span>
+      {m[3]}
+    </>
+  );
+};
+
 // ── Primitive UI components ───────────────────────────────────────────────────
 
 interface CardProps { children: React.ReactNode; className?: string; }
@@ -721,7 +735,7 @@ function PlayerFundView({ myBalance, fundBalance, myTransactions }: PlayerFundVi
                       {LABELS[t.type] ?? t.type}
                     </p>
                     <p className="text-gray-500 text-xs mt-0.5">
-                      {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
+                      {fmtDate(t.created_at)}{t.note ? <> · {highlightNote(t.note)}</> : ''}
                     </p>
                   </div>
                   <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
@@ -839,7 +853,7 @@ export default function FeesTab() {
                           {LABELS[t.type] ?? t.type}
                         </p>
                         <p className="text-gray-500 text-xs mt-0.5">
-                          {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
+                          {fmtDate(t.created_at)}{t.note ? <> · {highlightNote(t.note)}</> : ''}
                         </p>
                       </div>
                       <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
