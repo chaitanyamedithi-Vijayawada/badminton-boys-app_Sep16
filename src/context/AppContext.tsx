@@ -888,13 +888,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { name, oldBalance, newBalance, guestCount: guestCount || undefined };
     });
 
+    // Pass the session's actual play date as `week` so the email's date chip
+    // shows the real session date. Previously cs.week (the Saturday the week is
+    // anchored to) was sent, so a Wednesday session's chip showed the following
+    // Saturday's date. Mirrors the extra-session email fix.
     notifySessionComplete({
-      day, week: cs.week, perPerson, totalCost: cs.total_cost,
+      day, week: sessionDate, perPerson, totalCost: cs.total_cost,
       courtsCount: cs.courts_count, players: notifyPlayers,
     });
 
     const result = await sendSessionEmail({
-      day, week: cs.week, sessionDate, sessionTime,
+      day, week: sessionDate, sessionDate, sessionTime,
       hoursPlayed: cs.courts_count * (cs.session_hours ?? 2),
       courtsCount: cs.courts_count, playersCount: cs.players_count, perPerson,
       allPlayerNames: [...sessionPlayers, ...sessionGuests.map(g => g.name)],
