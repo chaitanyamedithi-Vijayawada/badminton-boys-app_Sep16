@@ -457,7 +457,7 @@ function SessionCard({ day }: { day: Day }) {
     : isToday && !sessionEnded
     ? 'Ongoing'
     : !wedVotingOpen
-    ? 'Opens Sat'
+    ? (day === 'saturday' ? 'Opens Sun' : 'Opens Thu')
     : votingLocked
     ? 'Locked'
     : cutoffPassed
