@@ -225,7 +225,7 @@ function PendingPayments() {
     const oldBalance = targetPlayer.balance;
     const newBalance = oldBalance + amount;
     await supabase.from('payments').update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() }).eq('id', id);
-    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: 'Payment Deposit Confirmed by Admin' });
+    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Payment Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
     await loadPendingPayments();
     await loadWallets();
     if (targetPlayer.email) {
@@ -370,7 +370,7 @@ function PendingTransfers() {
     const oldBalance = targetPlayer.balance;
     const newBalance = oldBalance + amount;
     await supabase.from('player_transfers').update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() }).eq('id', id);
-    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: 'Transfer Deposit Confirmed by Admin' });
+    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Transfer Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
     await loadPlayerTransfers();
     await loadWallets();
     if (targetPlayer.email) {
