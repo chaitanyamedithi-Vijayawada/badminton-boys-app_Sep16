@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { getWeekKey, getCompletedWeekKey, parseCourtSplit, courtSplitCourtHours, DEFAULT_COURT_SPLIT } from '../lib/constants';
 import type { CourtSplit, CourtSplitSegment } from '../lib/constants';
-import { getCurrentWeekKey, getCurrentWeekRange, isExtraSessionEnded, minutesSinceSessionEnd } from '../lib/cutoff';
+import { getCurrentWeekKey, getCurrentWeekRange, isExtraSessionEnded, getPacificNow } from '../lib/cutoff';
 import type { Day, Player, PlayerTransfer } from '../types';
 import PlayerAvatar from '../components/PlayerAvatar';
 
@@ -810,28 +810,35 @@ export default function AdminTab() {
           automatically; the admin must always be the one who commits money. */}
       {(() => {
         const weekKey = getCurrentWeekKey();
+        const [wy, wm, wd] = weekKey.split('-').map(Number);
+        const wedEndHour = (() => {
+          try {
+            const t = JSON.parse(settings.wed_time || '{}');
+            if (t.end) {
+              const m = /(\d+):(\d+)\s*(AM|PM)?/i.exec(t.end);
+              if (m) {
+                let h = parseInt(m[1], 10);
+                if (m[3] && m[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+                return h;
+              }
+            }
+          } catch { /* ignore */ }
+          return 20;
+        })();
         const ready: { day: Day; label: string }[] = [];
         (['saturday', 'wednesday'] as Day[]).forEach(d => {
           const finalized = completedSessions.some(s =>
             s.day === d && !s.is_extra && s.week === weekKey
           );
           if (finalized) return;
-          const wedEndHour = (() => {
-            try {
-              const t = JSON.parse(settings.wed_time || '{}');
-              if (t.end) {
-                const m = /(\d+):(\d+)\s*(AM|PM)?/i.exec(t.end);
-                if (m) {
-                  let h = parseInt(m[1], 10);
-                  if (m[3] && m[3].toUpperCase() === 'PM' && h !== 12) h += 12;
-                  return h;
-                }
-              }
-            } catch { /* ignore */ }
-            return 20;
-          })();
-          const mins = minutesSinceSessionEnd(d, 9, wedEndHour);
-          if (mins >= 120) {
+          // Derive THIS session's end time from the week it will be recorded
+          // under (matching the auto-finalizer), so "has it ended 2h ago?" and
+          // "is it finalized?" always refer to the same session. The old code
+          // used minutesSinceSessionEnd(), which looked back to the *previous*
+          // Saturday and falsely offered to finalize an already-done session.
+          const end = new Date(wy, wm - 1, wd, 9, 0, 0, 0);
+          if (d === 'wednesday') { end.setDate(end.getDate() - 3); end.setHours(wedEndHour, 0, 0, 0); }
+          if (getPacificNow().getTime() >= end.getTime() + 2 * 60 * 60 * 1000) {
             ready.push({
               day: d,
               label: d === 'saturday' ? 'Saturday' : 'Wednesday',
