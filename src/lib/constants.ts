@@ -187,34 +187,28 @@ export function getCompletedWeekKey(): string {
 
 
 export function getNextWeekday(dayNum: number): Date {
-  // Anchored to Pacific time. Must stay aligned with getWeekKey() — both
-  // functions use the same "daysUntilSat" logic so the displayed session date
-  // always matches the week key that RSVPs are saved under. The old logic had
-  // special-case branches for Saturday evening / Sunday / Monday that drifted
-  // out of sync with getWeekKey, showing the wrong session date.
+  // For Saturday (6) and Wednesday (3), derive the date directly from
+  // getUpcomingSessionWeekKey so the displayed date is ALWAYS in lockstep with
+  // the roster, tab, and cutoff (which roll forward at end + 2h). Votes are
+  // written under getUpcomingSessionWeekKey, so this is the correct anchor —
+  // getWeekKey (which only rolls after Saturday) would drift and show the wrong
+  // session date / a false "Ongoing" in the 2-hour window after a session ends.
+  if (dayNum === 6 || dayNum === 3) {
+    const [y, m, d] = getUpcomingSessionWeekKey(dayNum === 6 ? 'saturday' : 'wednesday')
+      .split('-').map(Number);
+    const dt = new Date(y, m - 1, d);        // the week-key Saturday (Pacific wall date)
+    if (dayNum === 3) dt.setDate(dt.getDate() - 3); // Wednesday is 3 days before
+    return dt;
+  }
+
+  // Generic fallback for any other weekday.
   const today = getPacificNow();
   const dow = today.getDay(); // 0=Sun … 6=Sat
   const result = new Date(today);
   result.setHours(0, 0, 0, 0);
-
-  // Replicate getWeekKey: the Saturday that anchors the current RSVP week.
-  const daysUntilSat = (6 - dow + 7) % 7;
-  const sat = new Date(result);
-  sat.setDate(result.getDate() + daysUntilSat);
-
-  if (dayNum === 6) {
-    return sat;
-  } else if (dayNum === 3) {
-    // Wednesday is 3 days before the week-key Saturday.
-    const wed = new Date(sat);
-    wed.setDate(sat.getDate() - 3);
-    return wed;
-  } else {
-    // Generic fallback for any other weekday.
-    const diff = (dayNum - dow + 7) % 7;
-    result.setDate(result.getDate() + diff);
-    return result;
-  }
+  const diff = (dayNum - dow + 7) % 7;
+  result.setDate(result.getDate() + diff);
+  return result;
 }
 
 export function formatDate(d: Date): string {
