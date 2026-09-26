@@ -156,7 +156,7 @@ export function getUpcomingSessionWeekKey(day: 'saturday' | 'wednesday'): string
   // session in view for the full 2-hour window is what makes the review/edit
   // window usable (add/remove players, then finalize) instead of the session
   // vanishing the moment it ends.
-  if (now.getTime() >= sessionEnd.getTime() + 2 * 60 * 60 * 1000) {
+ if (now.getTime() >= sessionEnd.getTime() + 2 * 60 * 60 * 1000) {
     thisSat.setDate(thisSat.getDate() + 7);
   }
   const yyyy = thisSat.getFullYear();
