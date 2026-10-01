@@ -233,6 +233,7 @@ export default function HistoryTab() {
   const [playerLedger, setPlayerLedger] = useState<{
     chargeBySession: Record<string, number>;
     sessionMeta: Record<string, { balanceAfter: number; time: number }>;
+    extraChargeByDate: Record<string, { charge: number; balanceAfter: number; time: number }>;
     totalTopUps: number;
     totalCharged: number;
     topUps: { date: string; amount: number; balanceAfter: number }[];
@@ -420,6 +421,10 @@ export default function HistoryTab() {
       let totalTopUps = 0;
       let totalCharged = 0; // net money out (charges − credits)
       const sessionMeta: Record<string, { balanceAfter: number; time: number }> = {};
+      // Extra-session charges have no session_id, but their note ends with the
+      // session date ("Extra Session — <title> · YYYY-MM-DD"). Key by that date
+      // so extra rows can show their exact charge + balance too.
+      const extraChargeByDate: Record<string, { charge: number; balanceAfter: number; time: number }> = {};
       const topUps: { date: string; amount: number; balanceAfter: number }[] = [];
       const miscCharges: { date: string; amount: number; note: string; balanceAfter: number }[] = [];
       chron.forEach(t => {
@@ -435,8 +440,12 @@ export default function HistoryTab() {
           }
         }
         if (t.session_id) sessionMeta[String(t.session_id)] = { balanceAfter: running, time };
+        if (t.type === 'match_charge' && t.note.startsWith('Extra Session —')) {
+          const dm = t.note.match(/(\d{4}-\d{2}-\d{2})\s*$/);
+          if (dm) extraChargeByDate[dm[1]] = { charge: Math.abs(t.amount), balanceAfter: running, time };
+        }
       });
-      setPlayerLedger({ chargeBySession, sessionMeta, totalTopUps, totalCharged, topUps, miscCharges });
+      setPlayerLedger({ chargeBySession, sessionMeta, extraChargeByDate, totalTopUps, totalCharged, topUps, miscCharges });
     })();
     return () => { cancelled = true; };
   }, [selectedPlayer, playerId]);
@@ -451,16 +460,6 @@ export default function HistoryTab() {
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!selectedPlayer || !playerLedger) return [];
 
-    // Map each extra session (extra_sessions.id) to its completed_sessions row id
-    // (week key is `extra-<id>-<date>`) so its charge/balance come from the ledger.
-    const extraToSessionId: Record<number, string> = {};
-    completedSessions.forEach((cs: CompletedSessionLite) => {
-      if (cs.is_extra && typeof cs.week === 'string') {
-        const m = cs.week.match(/^extra-(\d+)-/);
-        if (m && cs.id != null) extraToSessionId[Number(m[1])] = String(cs.id);
-      }
-    });
-
     const pSessions = allSessions.filter(s => {
       const inP = s.players.includes(selectedPlayer);
       const bg = s.type === 'regular' && s.guests.some(g => g.brought_by === selectedPlayer);
@@ -469,15 +468,20 @@ export default function HistoryTab() {
 
     const items: TimelineItem[] = [];
     pSessions.forEach(s => {
-      const sid = s.type === 'regular'
-        ? (s.completedId != null ? String(s.completedId) : undefined)
-        : extraToSessionId[s.id];
-      const meta = sid ? playerLedger.sessionMeta[sid] : undefined;
-      const led = sid ? playerLedger.chargeBySession[sid] : undefined;
-      const gc = s.type === 'regular' ? (s.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0) : 0;
-      const charge = led != null ? Math.abs(led) : s.perPerson * (1 + gc);
       const dateNum = Date.parse(`${s.sortDate}T12:00:00`) || 0;
-      items.push({ kind: 'session', time: meta?.time ?? dateNum, date: dateNum, session: s, charge, balanceAfter: meta?.balanceAfter });
+      if (s.type === 'regular') {
+        const sid = s.completedId != null ? String(s.completedId) : undefined;
+        const meta = sid ? playerLedger.sessionMeta[sid] : undefined;
+        const led = sid ? playerLedger.chargeBySession[sid] : undefined;
+        const gc = s.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0;
+        const charge = led != null ? Math.abs(led) : s.perPerson * (1 + gc);
+        items.push({ kind: 'session', time: meta?.time ?? dateNum, date: dateNum, session: s, charge, balanceAfter: meta?.balanceAfter });
+      } else {
+        // Extra session: match by its date (charges carry no session_id).
+        const em = playerLedger.extraChargeByDate[s.sessionDate];
+        const charge = em ? em.charge : s.perPerson;
+        items.push({ kind: 'session', time: em?.time ?? dateNum, date: dateNum, session: s, charge, balanceAfter: em?.balanceAfter });
+      }
     });
     playerLedger.topUps.forEach(t => {
       const d = Date.parse(t.date) || 0;
@@ -494,7 +498,7 @@ export default function HistoryTab() {
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
     };
     return items.filter(it => monthOk(it.date)).sort((a, b) => b.time - a.time);
-  }, [selectedPlayer, selectedMonth, allSessions, completedSessions, playerLedger]);
+  }, [selectedPlayer, selectedMonth, allSessions, playerLedger]);
 
   // ── Shared helpers ───────────────────────────────────────────────────────────
 
