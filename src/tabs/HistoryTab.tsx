@@ -879,6 +879,10 @@ export default function HistoryTab() {
     const key = session.key;
     const missingPlayers = players.filter(p => !session.players.includes(p.name));
     const isAddingHere = addingTo === key;
+    // When a specific player is selected, show a compact read-only glance:
+    // hide the admin editing tools and attendee chips so only the match
+    // summary + that player's charge remain.
+    const compact = !!selectedPlayer;
 
     return (
       <div key={key} className={`neon-card ${session.day === 'saturday' ? 'card-cyan' : 'card-lime'}`}>
@@ -928,7 +932,7 @@ export default function HistoryTab() {
               ⏱ {session.courts.length * session.sessionHours} hrs
             </span>
           )}
-          {isAdmin && session.isDeducted && editingCourtsFor !== session.key && (
+          {isAdmin && !compact && session.isDeducted && editingCourtsFor !== session.key && (
             <button
               onClick={() => { setEditingCourtsFor(session.key); setPendingCourts(session.courts.length); }}
               className="text-xs ml-1 px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-400 bg-amber-900/20 hover:bg-amber-900/40 transition-colors"
@@ -939,7 +943,7 @@ export default function HistoryTab() {
         </div>
 
         {/* Inline court-count editor (admin) */}
-        {isAdmin && session.isDeducted && editingCourtsFor === session.key && (() => {
+        {isAdmin && !compact && session.isDeducted && editingCourtsFor === session.key && (() => {
           const rate = session.ratePerCourt ?? ratePerCourt;
           const newTotal = pendingCourts * (rate / 2) * session.sessionHours;
           const changed = pendingCourts !== session.courts.length;
@@ -1053,7 +1057,7 @@ export default function HistoryTab() {
                   </div>
                 </div>
               )}
-              {myName && !wasGoing && (
+              {!compact && myName && !wasGoing && (
                 <div className="text-xs text-slate-600 mt-1">You were not in this session</div>
               )}
             </div>
@@ -1061,6 +1065,7 @@ export default function HistoryTab() {
         })()}
 
         {/* Players + guests */}
+        {!compact && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {session.players
             .filter(name => !selectedPlayer || name === selectedPlayer)
@@ -1103,9 +1108,10 @@ export default function HistoryTab() {
             </div>
           ))}
         </div>
+        )}
 
         {/* Admin controls */}
-        {isAdmin && (
+        {isAdmin && !compact && (
           <div className="border-t border-slate-800/60 pt-2">
             <div className="flex items-center gap-3">
               <button
@@ -1221,7 +1227,7 @@ export default function HistoryTab() {
         )}
 
       {/* Admin: adjust per-player hours (partial sessions) */}
-      {isAdmin && session.isDeducted && session.completedId && (() => {
+      {isAdmin && !compact && session.isDeducted && session.completedId && (() => {
         const isAdjusting = adjustingHoursFor === session.key;
         const maxH = session.sessionHours;
         const stepOptions: number[] = [];
