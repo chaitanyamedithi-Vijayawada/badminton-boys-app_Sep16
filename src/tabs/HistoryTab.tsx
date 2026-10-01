@@ -436,29 +436,57 @@ export default function HistoryTab() {
   // trail. Top-ups respect the month filter too. Only used when a player is
   // selected; otherwise the plain session list is rendered.
   type TimelineItem =
-    | { kind: 'session'; date: number; session: UnifiedSession }
+    | { kind: 'session'; date: number; session: UnifiedSession; charge: number; balanceAfter: number }
     | { kind: 'topup'; date: number; iso: string; amount: number; balanceBefore: number; balanceAfter: number }
-    | { kind: 'misc'; date: number; iso: string; amount: number; note: string };
+    | { kind: 'misc'; date: number; iso: string; amount: number; note: string; balanceAfter: number };
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!selectedPlayer) return [];
-    const inMonth = (iso: string) => {
-      if (!selectedMonth) return true;
-      const d = new Date(iso);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
+
+    // The selected player's sessions across ALL months, so the running balance
+    // stays correct even when a single month is being viewed.
+    const pSessions = allSessions.filter(s => {
+      const inP = s.players.includes(selectedPlayer);
+      const bg = s.type === 'regular' && s.guests.some(g => g.brought_by === selectedPlayer);
+      return inP || bg;
+    });
+    const chargeOf = (s: UnifiedSession): number => {
+      if (s.type === 'regular') {
+        const led = s.completedId != null ? playerLedger?.chargeBySession[String(s.completedId)] : undefined;
+        const gc = s.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0;
+        return led != null ? Math.abs(led) : s.perPerson * (1 + gc);
+      }
+      return s.perPerson;
     };
-    const items: TimelineItem[] = filtered.map(s => ({
-      kind: 'session', date: Date.parse(`${s.sortDate}T12:00:00`) || 0, session: s,
-    }));
+
+    // One chronological stream of every balance-moving item so each row can show
+    // the balance AFTER it. Charges subtract, top-ups add.
+    type Raw = { date: number; signed: number; make: (bal: number) => TimelineItem };
+    const raw: Raw[] = [];
+    pSessions.forEach(s => {
+      const charge = chargeOf(s);
+      const date = Date.parse(`${s.sortDate}T12:00:00`) || 0;
+      raw.push({ date, signed: -charge, make: bal => ({ kind: 'session', date, session: s, charge, balanceAfter: bal }) });
+    });
     (playerLedger?.topUps ?? []).forEach(t => {
-      if (!inMonth(t.date)) return;
-      items.push({ kind: 'topup', date: Date.parse(t.date) || 0, iso: t.date, amount: t.amount, balanceBefore: t.balanceBefore, balanceAfter: t.balanceAfter });
+      const date = Date.parse(t.date) || 0;
+      raw.push({ date, signed: t.amount, make: bal => ({ kind: 'topup', date, iso: t.date, amount: t.amount, balanceBefore: bal - t.amount, balanceAfter: bal }) });
     });
     (playerLedger?.miscCharges ?? []).forEach(m => {
-      if (!inMonth(m.date)) return;
-      items.push({ kind: 'misc', date: Date.parse(m.date) || 0, iso: m.date, amount: m.amount, note: m.note });
+      const date = Date.parse(m.date) || 0;
+      raw.push({ date, signed: -Math.abs(m.amount), make: bal => ({ kind: 'misc', date, iso: m.date, amount: m.amount, note: m.note, balanceAfter: bal }) });
     });
-    return items.sort((a, b) => b.date - a.date);
-  }, [selectedPlayer, selectedMonth, filtered, playerLedger]);
+
+    raw.sort((a, b) => a.date - b.date);
+    let running = 0;
+    const built = raw.map(r => { running += r.signed; return { date: r.date, item: r.make(running) }; });
+
+    const monthOk = (d: number) => {
+      if (!selectedMonth) return true;
+      const dt = new Date(d);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
+    };
+    return built.filter(b => monthOk(b.date)).map(b => b.item).sort((a, b) => b.date - a.date);
+  }, [selectedPlayer, selectedMonth, allSessions, playerLedger]);
 
   // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -774,9 +802,10 @@ export default function HistoryTab() {
 
   // ── Render: extra session card ───────────────────────────────────────────────
 
-  const renderExtraCard = (session: ExtraSessionGroup) => {
-    // Player selected → minimal "charges only" row.
+  const renderExtraCard = (session: ExtraSessionGroup, compactCharge?: number, compactBalance?: number) => {
+    // Player selected → minimal "charges only" row, with balance-after.
     if (selectedPlayer) {
+      const charge = compactCharge ?? session.perPerson;
       return (
         <div key={session.key} className="neon-card card-purple">
           <div className="flex items-center justify-between">
@@ -786,7 +815,10 @@ export default function HistoryTab() {
             </div>
             <div className="text-right">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Charge</div>
-              <div className="text-lg font-bold text-red-400">${session.perPerson.toFixed(2)}</div>
+              <div className="text-base font-bold text-red-400">${charge.toFixed(2)}</div>
+              {compactBalance != null && (
+                <div className="text-[11px] text-slate-400 mt-0.5">Bal: <span className="font-semibold text-slate-200">${compactBalance.toFixed(2)}</span></div>
+              )}
             </div>
           </div>
         </div>
@@ -947,7 +979,7 @@ export default function HistoryTab() {
 
   // ── Render: regular session card ─────────────────────────────────────────────
 
-  const renderRegularCard = (session: SessionGroup) => {
+  const renderRegularCard = (session: SessionGroup, compactCharge?: number, compactBalance?: number) => {
     const key = session.key;
     const missingPlayers = players.filter(p => !session.players.includes(p.name));
     const isAddingHere = addingTo === key;
@@ -957,14 +989,14 @@ export default function HistoryTab() {
     const compact = !!selectedPlayer;
 
     // Player selected → minimal "charges only" row: day + date on the left,
-    // that player's actual charge (from their ledger, guests/hours included) on
-    // the right. Falls back to the session per-person until the ledger loads.
+    // that player's actual charge (from their ledger, guests/hours included) and
+    // the balance after it on the right.
     if (compact) {
       const led = session.completedId != null
         ? playerLedger?.chargeBySession[String(session.completedId)]
         : undefined;
       const guestCount = session.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0;
-      const charge = led != null ? Math.abs(led) : session.perPerson * (1 + guestCount);
+      const charge = compactCharge ?? (led != null ? Math.abs(led) : session.perPerson * (1 + guestCount));
       return (
         <div key={key} className={`neon-card ${session.day === 'saturday' ? 'card-cyan' : 'card-lime'}`}>
           <div className="flex items-center justify-between">
@@ -974,7 +1006,10 @@ export default function HistoryTab() {
             </div>
             <div className="text-right">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Charge</div>
-              <div className="text-lg font-bold text-red-400">${charge.toFixed(2)}</div>
+              <div className="text-base font-bold text-red-400">${charge.toFixed(2)}</div>
+              {compactBalance != null && (
+                <div className="text-[11px] text-slate-400 mt-0.5">Bal: <span className="font-semibold text-slate-200">${compactBalance.toFixed(2)}</span></div>
+              )}
             </div>
           </div>
         </div>
@@ -1579,11 +1614,14 @@ export default function HistoryTab() {
                       {new Date(item.iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                   </div>
-                  <div className="text-base font-bold text-red-400">−${Math.abs(item.amount).toFixed(2)}</div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-red-400">−${Math.abs(item.amount).toFixed(2)}</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">Bal: <span className="font-semibold text-slate-200">${item.balanceAfter.toFixed(2)}</span></div>
+                  </div>
                 </div>
               ) : item.session.type === 'extra'
-                ? renderExtraCard(item.session)
-                : renderRegularCard(item.session)
+                ? renderExtraCard(item.session, item.charge, item.balanceAfter)
+                : renderRegularCard(item.session, item.charge, item.balanceAfter)
             )
           ) : (
             filtered.map(session =>
