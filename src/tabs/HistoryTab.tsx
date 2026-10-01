@@ -230,7 +230,7 @@ export default function HistoryTab() {
   // Selected player's real ledger: actual charge per completed session
   // (match_charge + adjustments, so guests and hour-tweaks are included) and
   // their total top-ups. Read-only — purely for the at-a-glance History view.
-  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[] } | null>(null);
+  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[]; miscCharges: { date: string; amount: number; note: string }[] } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -387,12 +387,12 @@ export default function HistoryTab() {
     (async () => {
       const { data } = await supabase
         .from('transactions')
-        .select('type, amount, session_id, created_at')
+        .select('type, amount, session_id, created_at, note')
         .eq('player_id', playerId);
       if (cancelled) return;
-      const rows = (data ?? []).map((t: { type: string; amount: number; session_id?: string | null; created_at?: string | null }) => ({
+      const rows = (data ?? []).map((t: { type: string; amount: number; session_id?: string | null; created_at?: string | null; note?: string | null }) => ({
         type: t.type, amount: Number(t.amount),
-        session_id: t.session_id ?? null, created_at: t.created_at ?? '',
+        session_id: t.session_id ?? null, created_at: t.created_at ?? '', note: t.note ?? '',
       }));
 
       // Per-session actual charge (match_charge + adjustments).
@@ -403,6 +403,12 @@ export default function HistoryTab() {
           chargeBySession[k] = (chargeBySession[k] ?? 0) + t.amount;
         }
       });
+
+      // Standalone misc/birdie charges (not tied to a session) — shown as their
+      // own rows so the timeline reconciles to the balance.
+      const miscCharges = rows
+        .filter(t => t.type === 'misc_charge' && t.created_at)
+        .map(t => ({ date: t.created_at, amount: t.amount, note: t.note }));
 
       // Walk the full ledger in chronological order to stamp each top-up with
       // the balance just before and after it (old + top-up = updated). This is
@@ -420,7 +426,7 @@ export default function HistoryTab() {
           if (t.created_at) topUps.push({ date: t.created_at, amount: t.amount, balanceBefore: before, balanceAfter: running });
         }
       });
-      setPlayerLedger({ chargeBySession, totalTopUps, topUps });
+      setPlayerLedger({ chargeBySession, totalTopUps, topUps, miscCharges });
     })();
     return () => { cancelled = true; };
   }, [selectedPlayer, playerId]);
@@ -431,19 +437,25 @@ export default function HistoryTab() {
   // selected; otherwise the plain session list is rendered.
   type TimelineItem =
     | { kind: 'session'; date: number; session: UnifiedSession }
-    | { kind: 'topup'; date: number; iso: string; amount: number; balanceBefore: number; balanceAfter: number };
+    | { kind: 'topup'; date: number; iso: string; amount: number; balanceBefore: number; balanceAfter: number }
+    | { kind: 'misc'; date: number; iso: string; amount: number; note: string };
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!selectedPlayer) return [];
+    const inMonth = (iso: string) => {
+      if (!selectedMonth) return true;
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
+    };
     const items: TimelineItem[] = filtered.map(s => ({
       kind: 'session', date: Date.parse(`${s.sortDate}T12:00:00`) || 0, session: s,
     }));
     (playerLedger?.topUps ?? []).forEach(t => {
-      if (selectedMonth) {
-        const d = new Date(t.date);
-        const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        if (mk !== selectedMonth) return;
-      }
+      if (!inMonth(t.date)) return;
       items.push({ kind: 'topup', date: Date.parse(t.date) || 0, iso: t.date, amount: t.amount, balanceBefore: t.balanceBefore, balanceAfter: t.balanceAfter });
+    });
+    (playerLedger?.miscCharges ?? []).forEach(m => {
+      if (!inMonth(m.date)) return;
+      items.push({ kind: 'misc', date: Date.parse(m.date) || 0, iso: m.date, amount: m.amount, note: m.note });
     });
     return items.sort((a, b) => b.date - a.date);
   }, [selectedPlayer, selectedMonth, filtered, playerLedger]);
@@ -1542,9 +1554,9 @@ export default function HistoryTab() {
       ) : (
         <div className="flex flex-col gap-3">
           {selectedPlayer ? (
-            timeline.map(item =>
+            timeline.map((item, i) =>
               item.kind === 'topup' ? (
-                <div key={`topup-${item.iso}`} className="rounded-xl border border-emerald-700/30 bg-emerald-900/15 px-4 py-2.5">
+                <div key={`topup-${item.iso}-${i}`} className="rounded-xl border border-emerald-700/30 bg-emerald-900/15 px-4 py-2.5">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-emerald-300">Top-Up</div>
@@ -1558,6 +1570,16 @@ export default function HistoryTab() {
                     ${item.balanceBefore.toFixed(2)} + ${item.amount.toFixed(2)} ={' '}
                     <span className="text-emerald-300 font-semibold">${item.balanceAfter.toFixed(2)}</span>
                   </div>
+                </div>
+              ) : item.kind === 'misc' ? (
+                <div key={`misc-${item.iso}-${i}`} className="rounded-xl border border-orange-700/30 bg-orange-900/10 px-4 py-2.5 flex items-center justify-between">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <div className="text-sm font-semibold text-orange-300 capitalize truncate">{item.note || 'Misc Charge'}</div>
+                    <div className="text-xs text-slate-400">
+                      {new Date(item.iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div className="text-base font-bold text-red-400">−${Math.abs(item.amount).toFixed(2)}</div>
                 </div>
               ) : item.session.type === 'extra'
                 ? renderExtraCard(item.session)
