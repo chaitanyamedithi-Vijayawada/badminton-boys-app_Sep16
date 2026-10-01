@@ -230,7 +230,7 @@ export default function HistoryTab() {
   // Selected player's real ledger: actual charge per completed session
   // (match_charge + adjustments, so guests and hour-tweaks are included) and
   // their total top-ups. Read-only — purely for the at-a-glance History view.
-  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number } | null>(null);
+  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number }[] } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -387,23 +387,48 @@ export default function HistoryTab() {
     (async () => {
       const { data } = await supabase
         .from('transactions')
-        .select('type, amount, session_id')
+        .select('type, amount, session_id, created_at')
         .eq('player_id', playerId);
       if (cancelled) return;
       const chargeBySession: Record<string, number> = {};
+      const topUps: { date: string; amount: number }[] = [];
       let totalTopUps = 0;
-      (data ?? []).forEach((t: { type: string; amount: number; session_id?: string | null }) => {
+      (data ?? []).forEach((t: { type: string; amount: number; session_id?: string | null; created_at?: string | null }) => {
         if (t.type === 'top_up') {
           totalTopUps += Number(t.amount);
+          if (t.created_at) topUps.push({ date: t.created_at, amount: Number(t.amount) });
         } else if ((t.type === 'match_charge' || t.type === 'adjustment') && t.session_id) {
           const k = String(t.session_id);
           chargeBySession[k] = (chargeBySession[k] ?? 0) + Number(t.amount);
         }
       });
-      setPlayerLedger({ chargeBySession, totalTopUps });
+      setPlayerLedger({ chargeBySession, totalTopUps, topUps });
     })();
     return () => { cancelled = true; };
   }, [selectedPlayer, playerId]);
+
+  // Merged chronological timeline for the selected-player view: match cards and
+  // that player's top-ups interleaved by date, so the list reads like an audit
+  // trail. Top-ups respect the month filter too. Only used when a player is
+  // selected; otherwise the plain session list is rendered.
+  type TimelineItem =
+    | { kind: 'session'; date: number; session: UnifiedSession }
+    | { kind: 'topup'; date: number; iso: string; amount: number };
+  const timeline = useMemo<TimelineItem[]>(() => {
+    if (!selectedPlayer) return [];
+    const items: TimelineItem[] = filtered.map(s => ({
+      kind: 'session', date: Date.parse(`${s.sortDate}T12:00:00`) || 0, session: s,
+    }));
+    (playerLedger?.topUps ?? []).forEach(t => {
+      if (selectedMonth) {
+        const d = new Date(t.date);
+        const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (mk !== selectedMonth) return;
+      }
+      items.push({ kind: 'topup', date: Date.parse(t.date) || 0, iso: t.date, amount: t.amount });
+    });
+    return items.sort((a, b) => b.date - a.date);
+  }, [selectedPlayer, selectedMonth, filtered, playerLedger]);
 
   // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -720,6 +745,23 @@ export default function HistoryTab() {
   // ── Render: extra session card ───────────────────────────────────────────────
 
   const renderExtraCard = (session: ExtraSessionGroup) => {
+    // Player selected → minimal "charges only" row.
+    if (selectedPlayer) {
+      return (
+        <div key={session.key} className="neon-card card-purple">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-100">{session.title}</div>
+              <div className="text-xs text-slate-400">{session.date}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Charge</div>
+              <div className="text-lg font-bold text-red-400">${session.perPerson.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     const isAddingHere = addingTo === session.key;
     const myPlayer = players.find(p => p.name === myName);
     const wasGoing = session.players.includes(myName ?? '');
@@ -883,6 +925,31 @@ export default function HistoryTab() {
     // hide the admin editing tools and attendee chips so only the match
     // summary + that player's charge remain.
     const compact = !!selectedPlayer;
+
+    // Player selected → minimal "charges only" row: day + date on the left,
+    // that player's actual charge (from their ledger, guests/hours included) on
+    // the right. Falls back to the session per-person until the ledger loads.
+    if (compact) {
+      const led = session.completedId != null
+        ? playerLedger?.chargeBySession[String(session.completedId)]
+        : undefined;
+      const guestCount = session.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0;
+      const charge = led != null ? Math.abs(led) : session.perPerson * (1 + guestCount);
+      return (
+        <div key={key} className={`neon-card ${session.day === 'saturday' ? 'card-cyan' : 'card-lime'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-100 capitalize">{session.day}</div>
+              <div className="text-xs text-slate-400">{session.date}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Charge</div>
+              <div className="text-lg font-bold text-red-400">${charge.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div key={key} className={`neon-card ${session.day === 'saturday' ? 'card-cyan' : 'card-lime'}`}>
@@ -1450,16 +1517,34 @@ export default function HistoryTab() {
       )}
 
       {/* Session list */}
-      {filtered.length === 0 ? (
+      {(selectedPlayer ? timeline.length === 0 : filtered.length === 0) ? (
         <div className="text-center text-slate-500 py-10">
           <div className="text-sm">No historical sessions stored yet</div>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map(session =>
-            session.type === 'extra'
-              ? renderExtraCard(session)
-              : renderRegularCard(session)
+          {selectedPlayer ? (
+            timeline.map(item =>
+              item.kind === 'topup' ? (
+                <div key={`topup-${item.iso}`} className="rounded-xl border border-emerald-700/30 bg-emerald-900/15 px-4 py-2.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-emerald-300">Top-Up</div>
+                    <div className="text-xs text-slate-400">
+                      {new Date(item.iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div className="text-lg font-bold text-emerald-400">+${item.amount.toFixed(2)}</div>
+                </div>
+              ) : item.session.type === 'extra'
+                ? renderExtraCard(item.session)
+                : renderRegularCard(item.session)
+            )
+          ) : (
+            filtered.map(session =>
+              session.type === 'extra'
+                ? renderExtraCard(session)
+                : renderRegularCard(session)
+            )
           )}
         </div>
       )}
