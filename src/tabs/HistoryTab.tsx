@@ -230,7 +230,7 @@ export default function HistoryTab() {
   // Selected player's real ledger: actual charge per completed session
   // (match_charge + adjustments, so guests and hour-tweaks are included) and
   // their total top-ups. Read-only — purely for the at-a-glance History view.
-  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number }[] } | null>(null);
+  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[] } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -390,16 +390,34 @@ export default function HistoryTab() {
         .select('type, amount, session_id, created_at')
         .eq('player_id', playerId);
       if (cancelled) return;
+      const rows = (data ?? []).map((t: { type: string; amount: number; session_id?: string | null; created_at?: string | null }) => ({
+        type: t.type, amount: Number(t.amount),
+        session_id: t.session_id ?? null, created_at: t.created_at ?? '',
+      }));
+
+      // Per-session actual charge (match_charge + adjustments).
       const chargeBySession: Record<string, number> = {};
-      const topUps: { date: string; amount: number }[] = [];
-      let totalTopUps = 0;
-      (data ?? []).forEach((t: { type: string; amount: number; session_id?: string | null; created_at?: string | null }) => {
-        if (t.type === 'top_up') {
-          totalTopUps += Number(t.amount);
-          if (t.created_at) topUps.push({ date: t.created_at, amount: Number(t.amount) });
-        } else if ((t.type === 'match_charge' || t.type === 'adjustment') && t.session_id) {
+      rows.forEach(t => {
+        if ((t.type === 'match_charge' || t.type === 'adjustment') && t.session_id) {
           const k = String(t.session_id);
-          chargeBySession[k] = (chargeBySession[k] ?? 0) + Number(t.amount);
+          chargeBySession[k] = (chargeBySession[k] ?? 0) + t.amount;
+        }
+      });
+
+      // Walk the full ledger in chronological order to stamp each top-up with
+      // the balance just before and after it (old + top-up = updated). This is
+      // computed from every transaction, so it's correct for historical
+      // top-ups too — not dependent on any note text.
+      const chron = [...rows].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+      let running = 0;
+      let totalTopUps = 0;
+      const topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[] = [];
+      chron.forEach(t => {
+        const before = running;
+        running += t.amount;
+        if (t.type === 'top_up') {
+          totalTopUps += t.amount;
+          if (t.created_at) topUps.push({ date: t.created_at, amount: t.amount, balanceBefore: before, balanceAfter: running });
         }
       });
       setPlayerLedger({ chargeBySession, totalTopUps, topUps });
@@ -413,7 +431,7 @@ export default function HistoryTab() {
   // selected; otherwise the plain session list is rendered.
   type TimelineItem =
     | { kind: 'session'; date: number; session: UnifiedSession }
-    | { kind: 'topup'; date: number; iso: string; amount: number };
+    | { kind: 'topup'; date: number; iso: string; amount: number; balanceBefore: number; balanceAfter: number };
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!selectedPlayer) return [];
     const items: TimelineItem[] = filtered.map(s => ({
@@ -425,7 +443,7 @@ export default function HistoryTab() {
         const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         if (mk !== selectedMonth) return;
       }
-      items.push({ kind: 'topup', date: Date.parse(t.date) || 0, iso: t.date, amount: t.amount });
+      items.push({ kind: 'topup', date: Date.parse(t.date) || 0, iso: t.date, amount: t.amount, balanceBefore: t.balanceBefore, balanceAfter: t.balanceAfter });
     });
     return items.sort((a, b) => b.date - a.date);
   }, [selectedPlayer, selectedMonth, filtered, playerLedger]);
@@ -1526,14 +1544,20 @@ export default function HistoryTab() {
           {selectedPlayer ? (
             timeline.map(item =>
               item.kind === 'topup' ? (
-                <div key={`topup-${item.iso}`} className="rounded-xl border border-emerald-700/30 bg-emerald-900/15 px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-emerald-300">Top-Up</div>
-                    <div className="text-xs text-slate-400">
-                      {new Date(item.iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <div key={`topup-${item.iso}`} className="rounded-xl border border-emerald-700/30 bg-emerald-900/15 px-4 py-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-emerald-300">Top-Up</div>
+                      <div className="text-xs text-slate-400">
+                        {new Date(item.iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
                     </div>
+                    <div className="text-lg font-bold text-emerald-400">+${item.amount.toFixed(2)}</div>
                   </div>
-                  <div className="text-lg font-bold text-emerald-400">+${item.amount.toFixed(2)}</div>
+                  <div className="mt-1.5 pt-1.5 border-t border-emerald-900/40 text-xs text-slate-400">
+                    ${item.balanceBefore.toFixed(2)} + ${item.amount.toFixed(2)} ={' '}
+                    <span className="text-emerald-300 font-semibold">${item.balanceAfter.toFixed(2)}</span>
+                  </div>
                 </div>
               ) : item.session.type === 'extra'
                 ? renderExtraCard(item.session)
