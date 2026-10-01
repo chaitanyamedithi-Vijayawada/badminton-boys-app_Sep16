@@ -141,12 +141,18 @@ export default function PlayersTab() {
     setTxPlayer(playerName);
     if (playerTxns[playerName] || !playerId) return;
     setLoadingTxns(playerName);
+    // Show the last 3 months at a glance: the current month plus the 2 prior
+    // months. Cutoff = first day of the month two months back (JS Date handles
+    // the year rollover, e.g. Jan → Nov of the previous year).
+    const now = new Date();
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString();
     const { data } = await supabase
       .from('transactions')
       .select('id, type, amount, created_at, note')
       .eq('player_id', playerId)
+      .gte('created_at', cutoff)
       .order('created_at', { ascending: false })
-      .limit(15);
+      .limit(200);
     setPlayerTxns(prev => ({ ...prev, [playerName]: data ?? [] }));
     setLoadingTxns(null);
   }, [txPlayer, playerTxns]);
