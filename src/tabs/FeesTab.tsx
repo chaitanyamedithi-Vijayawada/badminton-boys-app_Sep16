@@ -87,20 +87,6 @@ const fmtAmt    = (n: number): string => (n >= 0 ? `$${Number(n).toFixed(2)}` : 
 const fmtSigned = (n: number): string => (n >= 0 ? `+$${Number(n).toFixed(2)}` : `-$${Math.abs(Number(n)).toFixed(2)}`);
 const fmtHrs    = (n: number): string => `${Number(n).toFixed(1)} hrs`;
 
-// Highlights the "balance $X → $Y" checkpoint stamped on top-up notes so the
-// numbers stand out from the rest of the note text.
-const highlightNote = (note: string): React.ReactNode => {
-  const m = note.match(/^(.*?)(balance\s+\$[-\d.,]+\s*→\s*\$[-\d.,]+)(.*)$/);
-  if (!m) return note;
-  return (
-    <>
-      {m[1]}
-      <span className="text-violet-300 font-semibold">{m[2]}</span>
-      {m[3]}
-    </>
-  );
-};
-
 // ── Primitive UI components ───────────────────────────────────────────────────
 
 interface CardProps { children: React.ReactNode; className?: string; }
@@ -184,7 +170,7 @@ interface CourtHoursCardProps {
   showAlert: boolean;
 }
 function CourtHoursCard({ courtHours, threshold, showAlert }: CourtHoursCardProps) {
-  const { purchased, used, remaining } = courtHours;
+  const { used, remaining } = courtHours;
   const isLow = remaining < threshold;
   return (
     <Card className={showAlert && isLow ? 'border-orange-700' : ''}>
@@ -198,45 +184,14 @@ function CourtHoursCard({ courtHours, threshold, showAlert }: CourtHoursCardProp
           </p>
         </div>
       )}
-      {purchased > 0 && (
-        <div className="flex justify-center mb-3">
-          <div className="relative" style={{ width: 200, height: 112 }}>
-            <svg width="200" height="112" viewBox="0 0 200 112">
-              <defs>
-                <linearGradient id="courtGauge" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0" stopColor="#ff6f91" />
-                  <stop offset="1" stopColor="#7c5cff" />
-                </linearGradient>
-              </defs>
-              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="14" strokeLinecap="round" />
-              <path
-                d="M 20 100 A 80 80 0 0 1 180 100"
-                fill="none"
-                stroke={isLow ? '#fb923c' : 'url(#courtGauge)'}
-                strokeWidth="14"
-                strokeLinecap="round"
-                strokeDasharray={`${Math.max(0, Math.min(1, remaining / purchased)) * 251.3} 251.3`}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-end pb-1">
-              <span className={`text-2xl font-bold ${balColor(remaining)}`}>{fmtHrs(remaining)}</span>
-              <span className="text-[10px] text-gray-500">remaining of {fmtHrs(purchased)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-gray-500 text-xs mb-1">Purchased</p>
-          <p className="text-violet-400 text-xl font-bold">{fmtHrs(purchased)}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
         <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
           <p className="text-gray-500 text-xs mb-1">Used</p>
-          <p className="text-orange-400 text-xl font-bold">{fmtHrs(used)}</p>
+          <p className="text-orange-400 text-2xl font-bold">{fmtHrs(used)}</p>
         </div>
         <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-gray-500 text-xs mb-1">Remaining</p>
-          <p className={`text-xl font-bold ${balColor(remaining)}`}>{fmtHrs(remaining)}</p>
+          <p className="text-gray-500 text-xs mb-1">Balance</p>
+          <p className={`text-2xl font-bold ${balColor(remaining)}`}>{fmtHrs(remaining)}</p>
         </div>
       </div>
     </Card>
@@ -735,7 +690,7 @@ function PlayerFundView({ myBalance, fundBalance, myTransactions }: PlayerFundVi
                       {LABELS[t.type] ?? t.type}
                     </p>
                     <p className="text-gray-500 text-xs mt-0.5">
-                      {fmtDate(t.created_at)}{t.note ? <> · {highlightNote(t.note)}</> : ''}
+                      {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
                     </p>
                   </div>
                   <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
@@ -853,7 +808,7 @@ export default function FeesTab() {
                           {LABELS[t.type] ?? t.type}
                         </p>
                         <p className="text-gray-500 text-xs mt-0.5">
-                          {fmtDate(t.created_at)}{t.note ? <> · {highlightNote(t.note)}</> : ''}
+                          {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
                         </p>
                       </div>
                       <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
