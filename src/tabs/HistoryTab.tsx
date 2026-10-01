@@ -230,7 +230,14 @@ export default function HistoryTab() {
   // Selected player's real ledger: actual charge per completed session
   // (match_charge + adjustments, so guests and hour-tweaks are included) and
   // their total top-ups. Read-only — purely for the at-a-glance History view.
-  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number; topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[]; miscCharges: { date: string; amount: number; note: string }[] } | null>(null);
+  const [playerLedger, setPlayerLedger] = useState<{
+    chargeBySession: Record<string, number>;
+    sessionMeta: Record<string, { balanceAfter: number; time: number }>;
+    totalTopUps: number;
+    totalCharged: number;
+    topUps: { date: string; amount: number; balanceAfter: number }[];
+    miscCharges: { date: string; amount: number; note: string; balanceAfter: number }[];
+  } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -395,7 +402,7 @@ export default function HistoryTab() {
         session_id: t.session_id ?? null, created_at: t.created_at ?? '', note: t.note ?? '',
       }));
 
-      // Per-session actual charge (match_charge + adjustments).
+      // Net charge per session (match_charge + adjustments), for the amount shown.
       const chargeBySession: Record<string, number> = {};
       rows.forEach(t => {
         if ((t.type === 'match_charge' || t.type === 'adjustment') && t.session_id) {
@@ -404,89 +411,90 @@ export default function HistoryTab() {
         }
       });
 
-      // Standalone misc/birdie charges (not tied to a session) — shown as their
-      // own rows so the timeline reconciles to the balance.
-      const miscCharges = rows
-        .filter(t => t.type === 'misc_charge' && t.created_at)
-        .map(t => ({ date: t.created_at, amount: t.amount, note: t.note }));
-
-      // Walk the full ledger in chronological order to stamp each top-up with
-      // the balance just before and after it (old + top-up = updated). This is
-      // computed from every transaction, so it's correct for historical
-      // top-ups too — not dependent on any note text.
+      // Walk the WHOLE ledger in chronological order so every row's balance and
+      // charge come from the real transactions — never estimates. This is the
+      // single source of truth, so the newest row's balance equals the player's
+      // actual balance and the whole column reconciles.
       const chron = [...rows].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
       let running = 0;
       let totalTopUps = 0;
-      const topUps: { date: string; amount: number; balanceBefore: number; balanceAfter: number }[] = [];
+      let totalCharged = 0; // net money out (charges − credits)
+      const sessionMeta: Record<string, { balanceAfter: number; time: number }> = {};
+      const topUps: { date: string; amount: number; balanceAfter: number }[] = [];
+      const miscCharges: { date: string; amount: number; note: string; balanceAfter: number }[] = [];
       chron.forEach(t => {
-        const before = running;
         running += t.amount;
+        const time = Date.parse(t.created_at) || 0;
         if (t.type === 'top_up') {
           totalTopUps += t.amount;
-          if (t.created_at) topUps.push({ date: t.created_at, amount: t.amount, balanceBefore: before, balanceAfter: running });
+          if (t.created_at) topUps.push({ date: t.created_at, amount: t.amount, balanceAfter: running });
+        } else {
+          totalCharged += -t.amount; // match_charge/misc_charge negative → adds; adjustment credit subtracts
+          if (t.type === 'misc_charge' && t.created_at) {
+            miscCharges.push({ date: t.created_at, amount: t.amount, note: t.note, balanceAfter: running });
+          }
         }
+        if (t.session_id) sessionMeta[String(t.session_id)] = { balanceAfter: running, time };
       });
-      setPlayerLedger({ chargeBySession, totalTopUps, topUps, miscCharges });
+      setPlayerLedger({ chargeBySession, sessionMeta, totalTopUps, totalCharged, topUps, miscCharges });
     })();
     return () => { cancelled = true; };
   }, [selectedPlayer, playerId]);
 
-  // Merged chronological timeline for the selected-player view: match cards and
-  // that player's top-ups interleaved by date, so the list reads like an audit
-  // trail. Top-ups respect the month filter too. Only used when a player is
-  // selected; otherwise the plain session list is rendered.
+  // Merged chronological timeline for the selected-player view: each match,
+  // top-up and birdie/misc charge as a row, ordered by the real transaction
+  // time so the running balance is monotonic and ends at the actual balance.
   type TimelineItem =
-    | { kind: 'session'; date: number; session: UnifiedSession; charge: number; balanceAfter: number }
-    | { kind: 'topup'; date: number; iso: string; amount: number; balanceBefore: number; balanceAfter: number }
-    | { kind: 'misc'; date: number; iso: string; amount: number; note: string; balanceAfter: number };
+    | { kind: 'session'; time: number; date: number; session: UnifiedSession; charge: number; balanceAfter?: number }
+    | { kind: 'topup'; time: number; date: number; iso: string; amount: number; balanceAfter: number }
+    | { kind: 'misc'; time: number; date: number; iso: string; amount: number; note: string; balanceAfter: number };
   const timeline = useMemo<TimelineItem[]>(() => {
-    if (!selectedPlayer) return [];
+    if (!selectedPlayer || !playerLedger) return [];
 
-    // The selected player's sessions across ALL months, so the running balance
-    // stays correct even when a single month is being viewed.
+    // Map each extra session (extra_sessions.id) to its completed_sessions row id
+    // (week key is `extra-<id>-<date>`) so its charge/balance come from the ledger.
+    const extraToSessionId: Record<number, string> = {};
+    completedSessions.forEach((cs: CompletedSessionLite) => {
+      if (cs.is_extra && typeof cs.week === 'string') {
+        const m = cs.week.match(/^extra-(\d+)-/);
+        if (m && cs.id != null) extraToSessionId[Number(m[1])] = String(cs.id);
+      }
+    });
+
     const pSessions = allSessions.filter(s => {
       const inP = s.players.includes(selectedPlayer);
       const bg = s.type === 'regular' && s.guests.some(g => g.brought_by === selectedPlayer);
       return inP || bg;
     });
-    const chargeOf = (s: UnifiedSession): number => {
-      if (s.type === 'regular') {
-        const led = s.completedId != null ? playerLedger?.chargeBySession[String(s.completedId)] : undefined;
-        const gc = s.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0;
-        return led != null ? Math.abs(led) : s.perPerson * (1 + gc);
-      }
-      return s.perPerson;
-    };
 
-    // One chronological stream of every balance-moving item so each row can show
-    // the balance AFTER it. Charges subtract, top-ups add.
-    type Raw = { date: number; signed: number; make: (bal: number) => TimelineItem };
-    const raw: Raw[] = [];
+    const items: TimelineItem[] = [];
     pSessions.forEach(s => {
-      const charge = chargeOf(s);
-      const date = Date.parse(`${s.sortDate}T12:00:00`) || 0;
-      raw.push({ date, signed: -charge, make: bal => ({ kind: 'session', date, session: s, charge, balanceAfter: bal }) });
+      const sid = s.type === 'regular'
+        ? (s.completedId != null ? String(s.completedId) : undefined)
+        : extraToSessionId[s.id];
+      const meta = sid ? playerLedger.sessionMeta[sid] : undefined;
+      const led = sid ? playerLedger.chargeBySession[sid] : undefined;
+      const gc = s.type === 'regular' ? (s.guests?.filter(g => g.brought_by === selectedPlayer).length ?? 0) : 0;
+      const charge = led != null ? Math.abs(led) : s.perPerson * (1 + gc);
+      const dateNum = Date.parse(`${s.sortDate}T12:00:00`) || 0;
+      items.push({ kind: 'session', time: meta?.time ?? dateNum, date: dateNum, session: s, charge, balanceAfter: meta?.balanceAfter });
     });
-    (playerLedger?.topUps ?? []).forEach(t => {
-      const date = Date.parse(t.date) || 0;
-      raw.push({ date, signed: t.amount, make: bal => ({ kind: 'topup', date, iso: t.date, amount: t.amount, balanceBefore: bal - t.amount, balanceAfter: bal }) });
+    playerLedger.topUps.forEach(t => {
+      const d = Date.parse(t.date) || 0;
+      items.push({ kind: 'topup', time: d, date: d, iso: t.date, amount: t.amount, balanceAfter: t.balanceAfter });
     });
-    (playerLedger?.miscCharges ?? []).forEach(m => {
-      const date = Date.parse(m.date) || 0;
-      raw.push({ date, signed: -Math.abs(m.amount), make: bal => ({ kind: 'misc', date, iso: m.date, amount: m.amount, note: m.note, balanceAfter: bal }) });
+    playerLedger.miscCharges.forEach(m => {
+      const d = Date.parse(m.date) || 0;
+      items.push({ kind: 'misc', time: d, date: d, iso: m.date, amount: m.amount, note: m.note, balanceAfter: m.balanceAfter });
     });
-
-    raw.sort((a, b) => a.date - b.date);
-    let running = 0;
-    const built = raw.map(r => { running += r.signed; return { date: r.date, item: r.make(running) }; });
 
     const monthOk = (d: number) => {
       if (!selectedMonth) return true;
       const dt = new Date(d);
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
     };
-    return built.filter(b => monthOk(b.date)).map(b => b.item).sort((a, b) => b.date - a.date);
-  }, [selectedPlayer, selectedMonth, allSessions, playerLedger]);
+    return items.filter(it => monthOk(it.date)).sort((a, b) => b.time - a.time);
+  }, [selectedPlayer, selectedMonth, allSessions, completedSessions, playerLedger]);
 
   // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -1569,7 +1577,7 @@ export default function HistoryTab() {
             </div>
             <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-2.5">
               <div className="text-xs text-slate-400 mb-0.5">Total Charged</div>
-              <div className="text-xl font-bold text-red-400">${playerStats.totalPaid.toFixed(2)}</div>
+              <div className="text-xl font-bold text-red-400">${(playerLedger?.totalCharged ?? playerStats.totalPaid).toFixed(2)}</div>
             </div>
             <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-2.5">
               <div className="text-xs text-slate-400 mb-0.5">Total Top-ups</div>
@@ -1602,7 +1610,7 @@ export default function HistoryTab() {
                     <div className="text-lg font-bold text-emerald-400">+${item.amount.toFixed(2)}</div>
                   </div>
                   <div className="mt-1.5 pt-1.5 border-t border-emerald-900/40 text-xs text-slate-400">
-                    ${item.balanceBefore.toFixed(2)} + ${item.amount.toFixed(2)} ={' '}
+                    ${(item.balanceAfter - item.amount).toFixed(2)} + ${item.amount.toFixed(2)} ={' '}
                     <span className="text-emerald-300 font-semibold">${item.balanceAfter.toFixed(2)}</span>
                   </div>
                 </div>
