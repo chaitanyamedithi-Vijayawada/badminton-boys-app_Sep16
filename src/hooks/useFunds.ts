@@ -165,22 +165,17 @@ export function useFunds(currentUser: CurrentUser | null) {
       .eq('type', 'adjustment')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    const mapped = (data ?? []).map((t: Record<string, unknown> & { players?: { name: string } | { name: string }[] | null }) => {
-      // Supabase types a to-one embedded relation (players!inner) as an array,
-      // though at runtime it comes back as a single object — normalize both.
-      const playerRel = Array.isArray(t.players) ? t.players[0] : t.players;
-      return {
-        id: t.id as string,
-        player_id: t.player_id as string,
-        type: t.type as string,
-        amount: Number(t.amount),
-        created_at: t.created_at as string,
-        note: t.note as string | undefined,
-        session_id: t.session_id as string | undefined,
-        misc_charge_id: t.misc_charge_id as string | undefined,
-        player_name: playerRel?.name,
-      };
-    });
+    const mapped = (data ?? []).map((t: Record<string, unknown> & { players?: { name: string } }) => ({
+      id: t.id as string,
+      player_id: t.player_id as string,
+      type: t.type as string,
+      amount: Number(t.amount),
+      created_at: t.created_at as string,
+      note: t.note as string | undefined,
+      session_id: t.session_id as string | undefined,
+      misc_charge_id: t.misc_charge_id as string | undefined,
+      player_name: t.players?.name,
+    }));
     setAllAdjustments(mapped);
   }, []);
 
@@ -197,7 +192,7 @@ export function useFunds(currentUser: CurrentUser | null) {
   const fetchCourtHours = useCallback(async () => {
     const { data: cpData, error: cpErr } = await supabase
       .from('court_payments')
-      .select('hours_purchased');
+      .select('hours_purchased, paid_at');
     if (cpErr) throw cpErr;
     const purchased = cpData.reduce((sum: number, r: { hours_purchased: number }) => sum + Number(r.hours_purchased || 0), 0);
 
@@ -226,13 +221,19 @@ export function useFunds(currentUser: CurrentUser | null) {
         const override = JSON.parse(settingsData.value);
         if (override && typeof override.value === 'number' && override.date) {
           const overrideTime = new Date(override.date).getTime();
-          const deductionsSinceOverride = csData
+          // Court-hours used since the baseline was set.
+          const usedSinceOverride = csData
             .filter((s: { created_at: string }) => new Date(s.created_at).getTime() > overrideTime)
             .reduce((sum: number, s: { courts_count: number; session_hours?: number }) => sum + (Number(s.courts_count || 0) * Number(s.session_hours ?? 2)), 0);
-          remaining = override.value - deductionsSinceOverride;
+          // Hours bought since the baseline was set — these ADD to the balance.
+          const purchasedSinceOverride = cpData
+            .filter((c: { paid_at?: string }) => c.paid_at && new Date(c.paid_at).getTime() > overrideTime)
+            .reduce((sum: number, c: { hours_purchased: number }) => sum + Number(c.hours_purchased || 0), 0);
+          // Balance = baseline + bought-since − used-since.
+          remaining = override.value + purchasedSinceOverride - usedSinceOverride;
           activeOverride = { value: override.value, date: override.date };
-          displayPurchased = override.value;
-          displayUsed = deductionsSinceOverride;
+          displayPurchased = override.value + purchasedSinceOverride;
+          displayUsed = usedSinceOverride;
         }
       } catch { /* ignore malformed override */ }
     }
