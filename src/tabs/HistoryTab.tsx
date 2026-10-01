@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { CheckCircle, Zap, UserPlus, X, Users, Clock, Plus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { makeInitials } from '../lib/constants';
@@ -227,6 +227,10 @@ export default function HistoryTab() {
   const [applyingHours, setApplyingHours] = useState(false);
 
   const [selectedPlayer, setSelectedPlayer] = useState('');
+  // Selected player's real ledger: actual charge per completed session
+  // (match_charge + adjustments, so guests and hour-tweaks are included) and
+  // their total top-ups. Read-only — purely for the at-a-glance History view.
+  const [playerLedger, setPlayerLedger] = useState<{ chargeBySession: Record<string, number>; totalTopUps: number } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -372,6 +376,34 @@ export default function HistoryTab() {
   }, [allSessions, selectedPlayer]);
 
   const playerInfo = players.find(p => p.name === selectedPlayer);
+
+  // Load the selected player's transactions so each match card can show their
+  // ACTUAL charge (guests + hour adjustments included) and the summary can show
+  // their total top-ups. Read-only; falls back silently if it can't load.
+  const playerId = playerInfo?.id;
+  useEffect(() => {
+    if (!selectedPlayer || !playerId) { setPlayerLedger(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('transactions')
+        .select('type, amount, session_id')
+        .eq('player_id', playerId);
+      if (cancelled) return;
+      const chargeBySession: Record<string, number> = {};
+      let totalTopUps = 0;
+      (data ?? []).forEach((t: { type: string; amount: number; session_id?: string | null }) => {
+        if (t.type === 'top_up') {
+          totalTopUps += Number(t.amount);
+        } else if ((t.type === 'match_charge' || t.type === 'adjustment') && t.session_id) {
+          const k = String(t.session_id);
+          chargeBySession[k] = (chargeBySession[k] ?? 0) + Number(t.amount);
+        }
+      });
+      setPlayerLedger({ chargeBySession, totalTopUps });
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPlayer, playerId]);
 
   // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -989,6 +1021,17 @@ export default function HistoryTab() {
                 <span className="text-slate-600">·</span>
                 <span className="text-emerald-400 font-medium">${session.perPerson.toFixed(2)}/person</span>
               </div>
+              {/* Selected player's ACTUAL charge for this match (guests + hour
+                  adjustments included), read from their ledger. */}
+              {selectedPlayer && session.completedId != null &&
+                playerLedger?.chargeBySession[String(session.completedId)] != null && (
+                <div className="mt-2 pt-2 border-t border-emerald-900/40 text-xs">
+                  <span className="text-slate-500">{selectedPlayer}'s charge: </span>
+                  <span className="text-red-400 font-semibold">
+                    ${Math.abs(playerLedger?.chargeBySession[String(session.completedId)] ?? 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
               {myName && wasGoing && oldBal !== null && myPlayer && (
                 <div className="mt-2 pt-2 border-t border-emerald-900/40">
                   <div className="text-xs text-slate-500 mb-1.5">
@@ -1381,7 +1424,7 @@ export default function HistoryTab() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-2.5">
               <div className="text-xs text-slate-400 mb-0.5">Sessions Played</div>
               <div className="text-xl font-bold text-violet-400">{playerStats.sessionsCount}</div>
@@ -1389,6 +1432,12 @@ export default function HistoryTab() {
             <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-2.5">
               <div className="text-xs text-slate-400 mb-0.5">Total Charged</div>
               <div className="text-xl font-bold text-red-400">${playerStats.totalPaid.toFixed(2)}</div>
+            </div>
+            <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-2.5">
+              <div className="text-xs text-slate-400 mb-0.5">Total Top-ups</div>
+              <div className="text-xl font-bold text-emerald-400">
+                ${(playerLedger?.totalTopUps ?? 0).toFixed(2)}
+              </div>
             </div>
           </div>
         </div>
