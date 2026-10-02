@@ -73,18 +73,30 @@ export function getCurrentWeekRange(): { start: string; end: string } {
 function getCurrentSessionDate(day: Day): Date {
   const now = getNowPacific();
   const dow = now.getDay();
-  const session = new Date(now);
-  session.setHours(0, 0, 0, 0);
+  const sat = new Date(now);
+  sat.setHours(0, 0, 0, 0);
 
   const daysUntilSat = (6 - dow + 7) % 7;
-  session.setDate(session.getDate() + daysUntilSat);
+  sat.setDate(sat.getDate() + daysUntilSat);
 
-  if (day === 'saturday') return session;
+  // This week's session date for `day` (Wednesday is 3 days before Saturday).
+  const session = new Date(sat);
+  if (day === 'wednesday') session.setDate(sat.getDate() - 3);
 
-  // Wednesday is 3 days before Saturday.
-  const wed = new Date(session);
-  wed.setDate(session.getDate() - 3);
-  return wed;
+  // Roll forward to next week once this session has ENDED, so the withdraw
+  // cutoff, voting-closed, and session-ended gates track the SAME upcoming
+  // session that the roster and displayed date (getUpcomingSessionWeekKey /
+  // getNextWeekday) already point to. Without this, from session-end until the
+  // next session these gates stayed pinned to the session that just passed, so
+  // an upcoming card wrongly showed "Voting closed" / "Session ended" / a
+  // withdraw cutoff that had already lapsed. End hours (Sat 9AM, Wed 8PM) are
+  // kept identical to getUpcomingSessionWeekKey so the two stay in lockstep.
+  const sessionEnd = new Date(session);
+  sessionEnd.setHours(day === 'saturday' ? 9 : 20, 0, 0, 0);
+  if (now.getTime() >= sessionEnd.getTime()) {
+    session.setDate(session.getDate() + 7);
+  }
+  return session;
 }
 
 function getNextSessionDate(day: Day): Date {
