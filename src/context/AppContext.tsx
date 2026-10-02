@@ -459,25 +459,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Complete Session Logic ───────────────────────────────────────────────────
   const completeSession = useCallback(async (day: Day, totalCostOverride?: number) => {
-    // Use the completed-week key so a session finalized on Sunday is recorded
-    // against the week that just ended, not the upcoming week. This prevents
-    // charges from being applied to the wrong (future) session.
+    // Use the completed-week key so a session finalized on Sunday/Monday is
+    // recorded against the week that just ended, not the upcoming week. This
+    // prevents charges from being applied to the wrong (future) session.
     const week = getCompletedWeekKey();
 
-    // Guard: only finalize once THIS session (the one `week` points at) has
-    // ended at least 2 hours ago. Deriving the end time from `week` itself —
-    // rather than the old isSessionEndPassed(), which rolled its target forward
-    // to next week — keeps the guard and the row's week in lockstep. That means
-    // a Saturday session can never be finalized against the *upcoming* week on
-    // Mon/Tue, and a genuinely-ended session stays finalizable through Sunday.
-    const [wy, wm, wd] = week.split('-').map(Number);
-    const sessionEnd = new Date(wy, wm - 1, wd, 9, 0, 0, 0); // Saturday 9:00 AM
+    // Guard: never finalize before the session has actually ended. Without
+    // this, an admin could finalize before the session date and deduct money
+    // from balances before the session was played.
+    //
+    // Derive the just-ended session's end time from `week` (the completed-week
+    // key this finalize records under), NOT from cutoff.ts's getCurrentSessionDate
+    // — that now rolls forward to the UPCOMING session for the display gates, so
+    // using it here would wrongly block finalizing the session that just ended.
+    // Mirrors the end-time math in RegularSessionAutoFinalizer.
+    const [gy, gm, gd] = week.split('-').map(Number);
+    const sessionEnd = new Date(gy, gm - 1, gd, 9, 0, 0, 0); // Saturday 9:00 AM
     if (day === 'wednesday') {
       sessionEnd.setDate(sessionEnd.getDate() - 3);          // Wednesday
       sessionEnd.setHours(Number(settings['wed_end_hour']) || 20, 0, 0, 0);
     }
-    if (getPacificNow().getTime() < sessionEnd.getTime() + 120 * 60 * 1000) {
-      showToast('Session must end (and 2 hours pass) before it can be finalized');
+    if (getPacificNow().getTime() < sessionEnd.getTime()) {
+      showToast('Session has not ended yet — cannot finalize');
       return;
     }
 
@@ -595,11 +598,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return `${yy}-${mm}-${dd}`;
     })();
 
-    // INSERT (not upsert) so the (week,day) UNIQUE constraint acts as an atomic
-    // lock: if two clients finalize the same session at once, only the first
-    // insert succeeds; the loser gets a 23505 and bails BEFORE inserting any
-    // charges, so a session can never be double-charged.
-    const { data: newSession, error: sessionErr } = await supabase.from('completed_sessions').insert({
+    const { data: newSession, error: sessionErr } = await supabase.from('completed_sessions').upsert({
       week,
       day,
       session_date: sessionDate,
@@ -614,12 +613,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       per_person: perPerson,
       auto_deducted: true,
       is_extra: false,
-    }).select().single();
+    }, { onConflict: 'week,day' }).select().single();
 
     if (sessionErr || !newSession) {
-      // 23505 = unique_violation: another device/tab won the race and already
-      // finalized this session. Refresh and bail without charging again.
-      if (sessionErr?.code === '23505') { await loadCompletedSessions(); return; }
       showToast('Error completing session metadata');
       return;
     }
@@ -860,6 +856,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cs = candidates[0];
     if (!cs) { showToast('No completed session found for ' + day); return; }
 
+    const { data: txns } = await supabase
+      .from('transactions').select('player_id, amount')
+      .eq('session_id', String(cs.id)).eq('type', 'match_charge');
+
+    const chargeMap: Record<string, number> = {};
+    (txns ?? []).forEach((t: { player_id: number | null; amount: number }) => {
+      if (t.player_id != null) chargeMap[String(t.player_id)] = Math.abs(t.amount);
+    });
+
     const { data: freshEmails } = await supabase.from('players').select('name, email');
     const emailMap: Record<string, string> = {};
     (freshEmails ?? []).forEach((p: { name: string; email?: string | null }) => {
@@ -882,23 +887,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const notifyPlayers = sessionPlayers.map(name => {
       const playerObj = players.find(p => p.name === name);
       const guestCount = sessionGuests.filter(g => g.brought_by === name).length;
+      const charge = playerObj ? (chargeMap[String(playerObj.id)] ?? perPerson * (1 + guestCount)) : perPerson;
       const newBalance = playerObj?.balance ?? 0;
       const totalDeducted = perPerson * (1 + guestCount);
       const oldBalance = newBalance + totalDeducted;
       return { name, oldBalance, newBalance, guestCount: guestCount || undefined };
     });
 
-    // Pass the session's actual play date as `week` so the email's date chip
-    // shows the real session date. Previously cs.week (the Saturday the week is
-    // anchored to) was sent, so a Wednesday session's chip showed the following
-    // Saturday's date. Mirrors the extra-session email fix.
     notifySessionComplete({
-      day, week: sessionDate, perPerson, totalCost: cs.total_cost,
+      day, week: cs.week, perPerson, totalCost: cs.total_cost,
       courtsCount: cs.courts_count, players: notifyPlayers,
     });
 
     const result = await sendSessionEmail({
-      day, week: sessionDate, sessionDate, sessionTime,
+      day, week: cs.week, sessionDate, sessionTime,
       hoursPlayed: cs.courts_count * (cs.session_hours ?? 2),
       courtsCount: cs.courts_count, playersCount: cs.players_count, perPerson,
       allPlayerNames: [...sessionPlayers, ...sessionGuests.map(g => g.name)],
@@ -1023,7 +1025,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Find completed_sessions row. Try the full week key first, then fall
     // back to the plain-date format used by older finalisation code.
     const extraWeekKey = `extra-${sessionId}-${session.session_date}`;
-    const { data: csRows } = await supabase
+    let { data: csRows } = await supabase
       .from('completed_sessions')
       .select('id, per_person, total_cost, courts_count, session_hours, players_count, guests')
       .eq('week', extraWeekKey)
@@ -1075,18 +1077,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return { name, oldBalance, newBalance, guestCount };
     });
 
-    // Name the email by the session's title (e.g. "Ladies Badminton"), and use
-    // the real session_date for `week` — passing the internal extraWeekKey
-    // ("extra-<id>-<date>") made the template's new Date(week) render "Invalid
-    // Date". This matches the finalize-extra-sessions cron function.
+    const sessionDayName = new Date(session.session_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
     notifySessionComplete({
-      day: session.title, week: session.session_date,
+      day: sessionDayName, week: extraWeekKey,
       perPerson, totalCost: cs.total_cost ?? 0,
       courtsCount: cs.courts_count ?? 1, players: notifyPlayers,
     });
 
     const result = await sendSessionEmail({
-      day: session.title, week: session.session_date,
+      day: sessionDayName, week: extraWeekKey,
       sessionDate: session.session_date,
       sessionTime: `${session.start_time} – ${session.end_time}`,
       hoursPlayed: (cs.courts_count ?? 1) * (cs.session_hours ?? 2),
