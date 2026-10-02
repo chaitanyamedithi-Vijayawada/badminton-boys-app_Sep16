@@ -74,8 +74,8 @@ function parseTueHours(settings: Record<string, string>): {
 
 // ---------------------------------------------------------------------------
 // SessionCard
-// Auto-finalize lives in components/RegularSessionAutoFinalizer (fires 2h after
-// a session ends). SessionCard only renders UI + the manual finalize override.
+// FIX: auto-finalize logic removed — RegularSessionAutoFinalizer is the sole
+//      owner of that responsibility. SessionCard only renders UI.
 // ---------------------------------------------------------------------------
 function SessionCard({ day }: { day: Day }) {
   const {
@@ -457,7 +457,7 @@ function SessionCard({ day }: { day: Day }) {
     : isToday && !sessionEnded
     ? 'Ongoing'
     : !wedVotingOpen
-    ? (day === 'saturday' ? 'Opens Sun' : 'Opens Thu')
+    ? 'Opens Sat'
     : votingLocked
     ? 'Locked'
     : cutoffPassed
@@ -616,13 +616,9 @@ function SessionCard({ day }: { day: Day }) {
         );
       })()}
 
-      {/* Cutoff label */}
-      {!isCancelled && !autoCancel && !alreadyCompleted && (
-        <div className={`rounded-lg px-3 py-2 mb-3 text-xs flex items-center gap-1.5 ${
-          cutoffPassed
-            ? 'bg-amber-900/20 border border-amber-700/30 text-amber-400'
-            : 'bg-violet-900/20 border border-violet-700/30 text-violet-400'
-        }`}>
+      {/* Cutoff label — only before the cutoff passes; hidden afterwards. */}
+      {!isCancelled && !autoCancel && !alreadyCompleted && !cutoffPassed && (
+        <div className="rounded-lg px-3 py-2 mb-3 text-xs flex items-center gap-1.5 bg-violet-900/20 border border-violet-700/30 text-violet-400">
           <Clock size={12} className="flex-shrink-0" />
           <span>{cutoffLabel}</span>
         </div>
