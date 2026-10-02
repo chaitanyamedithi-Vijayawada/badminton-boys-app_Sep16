@@ -73,28 +73,18 @@ export function getCurrentWeekRange(): { start: string; end: string } {
 function getCurrentSessionDate(day: Day): Date {
   const now = getNowPacific();
   const dow = now.getDay();
-  const sat = new Date(now);
-  sat.setHours(0, 0, 0, 0);
+  const session = new Date(now);
+  session.setHours(0, 0, 0, 0);
 
   const daysUntilSat = (6 - dow + 7) % 7;
-  sat.setDate(sat.getDate() + daysUntilSat);
+  session.setDate(session.getDate() + daysUntilSat);
+
+  if (day === 'saturday') return session;
 
   // Wednesday is 3 days before Saturday.
-  const session = new Date(sat);
-  if (day === 'wednesday') session.setDate(sat.getDate() - 3);
-
-  // Roll forward to next week once this session ended 2+ hours ago, so the
-  // cutoff and review-window logic (isSessionEndPassed) advance in lockstep
-  // with the roster view (getUpcomingSessionWeekKey). Without this, after a
-  // session ends the roster jumps to next week while the cutoff still points at
-  // the just-played session — which falsely flags the next session "cancelled"
-  // and hides the finalize button.
-  const end = new Date(session);
-  end.setHours(day === 'saturday' ? 9 : 20, 0, 0, 0);
-  if (now.getTime() >= end.getTime() + 2 * 60 * 60 * 1000) {
-    session.setDate(session.getDate() + 7);
-  }
-  return session;
+  const wed = new Date(session);
+  wed.setDate(session.getDate() - 3);
+  return wed;
 }
 
 function getNextSessionDate(day: Day): Date {
@@ -106,7 +96,7 @@ function getCutoffDate(day: Day): Date {
   const cutoff = new Date(session);
   if (day === 'saturday') {
     cutoff.setDate(session.getDate() - 2); // Thursday
-    cutoff.setHours(21, 0, 0, 0);          // 9:00 PM
+    cutoff.setHours(18, 0, 0, 0);          // 6:00 PM
   } else {
     cutoff.setDate(session.getDate() - 1); // Wednesday
     cutoff.setHours(17, 0, 0, 0);          // 5:00 PM
@@ -185,7 +175,7 @@ export function isCutoffPassed(day: Day): boolean {
 export function getCutoffInfo(day: Day): { passed: boolean; label: string; deadline: string } {
   const passed = isCutoffPassed(day);
   const dayName = day === 'saturday' ? 'Thursday' : 'Tuesday';
-  const time = day === 'saturday' ? '9:00 PM' : '5:00 PM';
+  const time = day === 'saturday' ? '6:00 PM' : '5:00 PM';
   const deadline = `${dayName} ${time}`;
   const label = passed
     ? `Withdraw cutoff passed (${deadline}) — you can still join!`
