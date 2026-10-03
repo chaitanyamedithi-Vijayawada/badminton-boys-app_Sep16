@@ -9,6 +9,8 @@ interface PlayerBalance {
   id: string;
   name: string;
   balance: number;
+  receivables?: number;
+  payables?: number;
 }
 
 interface CourtHours {
@@ -712,6 +714,105 @@ function PlayerFundView({ myBalance, fundBalance, myTransactions }: PlayerFundVi
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+// Player who fronts the court fees. In the Fund Manager their row shows
+// "to receive" = value of the remaining (not-yet-played) court hours, instead
+// of their raw transaction balance which is misleadingly negative. The club
+// reimburses them gradually as hours are used, so the remaining-hours value is
+// exactly what is still owed. See project technical-learnings.
+const FUND_HOLDER_NAME = 'Arun';
+
+interface FundManagerCardProps {
+  playerBalances: PlayerBalance[];
+  remainingHours: number;
+  courtRate: number;
+}
+function FundManagerCard({ playerBalances, remainingHours, courtRate }: FundManagerCardProps) {
+  const [collapsed, setCollapsed] = useState(true);
+
+  const courtFloat  = remainingHours * courtRate;            // still owed to fund holder
+  const members     = playerBalances.filter(p => p.name !== FUND_HOLDER_NAME);
+  const membersNet  = members.reduce((s, p) => s + p.balance, 0);
+  const holder      = playerBalances.find(p => p.name === FUND_HOLDER_NAME);
+  const clubFund    = membersNet + courtFloat;
+  const rows        = [...members].sort((a, b) => b.balance - a.balance);
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <SectionTitle title="Fund Manager" />
+        <button
+          onClick={() => setCollapsed(v => !v)}
+          className="text-xs text-gray-400 hover:text-violet-400 transition-colors border border-gray-700 hover:border-violet-700 px-2 py-1 rounded-lg"
+        >
+          {collapsed ? '▼ Show' : '▲ Hide'}
+        </button>
+      </div>
+
+      {/* Summary — always visible */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Treasurer</p>
+          <p className="text-xl font-bold text-violet-300">{fmtAmt(clubFund)}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">(all players money)</p>
+        </div>
+        <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Owed to Arun</p>
+          <p className="text-xl font-bold text-violet-300">{fmtAmt(courtFloat)}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">{remainingHours.toFixed(1)} hrs × ${courtRate.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* Fund holder "to receive" — always visible */}
+      {holder && (
+        <div className="flex items-center justify-between py-2 px-1 mt-2 border-t border-gray-800">
+          <div>
+            <p className="text-white text-sm font-medium">
+              {holder.name} <span className="text-[10px] text-gray-500">· court float</span>
+            </p>
+            <p className="text-[10px] text-gray-500">raw ledger: {fmtAmt(holder.balance)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-semibold text-violet-300">{fmtAmt(courtFloat)}</p>
+            <p className="text-[10px] text-gray-500">to receive</p>
+          </div>
+        </div>
+      )}
+
+      {collapsed && (
+        <p className="text-gray-500 text-xs text-center py-1 mt-1">
+          {rows.length} players · tap Show for the full table
+        </p>
+      )}
+
+      {!collapsed && (
+        <div className="mt-2">
+          <div className="flex items-center text-[10px] uppercase tracking-wider text-gray-500 px-1 pb-1 border-b border-gray-800">
+            <span className="flex-1">Player</span>
+            <span className="w-16 text-right">Paid in</span>
+            <span className="w-16 text-right">Used</span>
+            <span className="w-20 text-right">Balance</span>
+          </div>
+          {rows.map((p, i) => (
+            <div
+              key={p.id}
+              className="flex items-center py-2 px-1"
+              style={i < rows.length - 1 ? { borderBottom: '1px solid rgba(31,41,55,0.6)' } : undefined}
+            >
+              <span className="flex-1 text-white text-sm truncate pr-2">{p.name}</span>
+              <span className="w-16 text-right text-xs text-gray-300">${(p.receivables ?? 0).toFixed(2)}</span>
+              <span className="w-16 text-right text-xs text-gray-400">${(p.payables ?? 0).toFixed(2)}</span>
+              <span className={`w-20 text-right text-sm font-semibold ${balColor(p.balance)}`}>{fmtAmt(p.balance)}</span>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <p className="text-gray-500 text-sm text-center py-4">No players found</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function FeesTab() {
   const { currentUser, isLoggedIn, setShowNamePicker } = useApp();
   const canManageFunds = currentUser?.role === 'admin' || currentUser?.role === 'treasurer';
@@ -720,7 +821,7 @@ export default function FeesTab() {
     fundBalance, playerBalances,
     myBalance, myTransactions,
     courtPayments, miscCharges, pendingSessions, allAdjustments,
-    courtHours, courtHoursAlertThreshold,
+    courtHours, courtRate, courtHoursAlertThreshold,
     loading, error, fundTrend,
     addTopUp, addMiscCharge, applyMatchCharges, addCourtPayment, deleteMiscCharge,
   } = useFunds(currentUser);
@@ -769,6 +870,11 @@ export default function FeesTab() {
       )} 
        {canManageFunds ? (
         <>
+          <FundManagerCard
+            playerBalances={playerBalances}
+            remainingHours={courtHours.remaining}
+            courtRate={courtRate}
+          />
           <FundSummaryCard fundBalance={fundBalance} fundTrend={fundTrend} />
           <CourtHoursCard
             courtHours={courtHours}
