@@ -13,6 +13,10 @@ interface PlayerBalance {
   id: string;
   name: string;
   balance: number;
+  /** Money paid in (sum of positive transactions) — "Receivables" in the fund view. */
+  receivables: number;
+  /** Money consumed (sum of negative transactions, as a positive number) — "Payables". */
+  payables: number;
 }
 
 interface Transaction {
@@ -75,6 +79,7 @@ export function useFunds(currentUser: CurrentUser | null) {
   const [miscCharges, setMiscCharges]         = useState<MiscCharge[]>([]);
   const [pendingSessions, setPendingSessions] = useState<PendingSession[]>([]);
   const [courtHours, setCourtHours]           = useState<CourtHours>({ purchased: 0, used: 0, remaining: 0, override: null });
+  const [courtRate, setCourtRate]             = useState<number>(0);
   const [loading, setLoading]                 = useState<boolean>(true);
   const [error, setError]                     = useState<string | null>(null);
   const [fundTrend, setFundTrend]             = useState<{ date: string; balance: number }[]>([]);
@@ -122,11 +127,33 @@ export function useFunds(currentUser: CurrentUser | null) {
     if (tErr) throw tErr;
 
     const map: Record<string, number> = {};
+    const recv: Record<string, number> = {};
+    const pay: Record<string, number> = {};
     txns.forEach((t: { player_id: string; amount: number }) => {
-      map[t.player_id] = (map[t.player_id] || 0) + Number(t.amount);
+      const amt = Number(t.amount);
+      map[t.player_id] = (map[t.player_id] || 0) + amt;
+      if (amt >= 0) recv[t.player_id] = (recv[t.player_id] || 0) + amt;
+      else          pay[t.player_id]  = (pay[t.player_id]  || 0) - amt; // store as positive
     });
 
-    setPlayerBalances(players.map((p: { id: string; name: string }) => ({ ...p, balance: map[p.id] ?? 0 })));
+    setPlayerBalances(players.map((p: { id: string; name: string }) => ({
+      ...p,
+      balance: map[p.id] ?? 0,
+      receivables: recv[p.id] ?? 0,
+      payables: pay[p.id] ?? 0,
+    })));
+  }, []);
+
+  // Court hourly rate (settings.court_rate) — read live so the court-float
+  // value tracks any future rate change rather than a hardcoded number.
+  const fetchCourtRate = useCallback(async () => {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'court_rate')
+      .maybeSingle();
+    const rate = data?.value != null ? parseFloat(String(data.value)) : NaN;
+    if (!isNaN(rate)) setCourtRate(rate);
   }, []);
 
   const fetchMyTransactions = useCallback(async () => {
@@ -260,6 +287,7 @@ export function useFunds(currentUser: CurrentUser | null) {
           fetchMiscCharges(),
           fetchPendingSessions(),
           fetchAllAdjustments(),
+          fetchCourtRate(),
         ]);
       }
     } catch (err) {
@@ -278,6 +306,7 @@ export function useFunds(currentUser: CurrentUser | null) {
     fetchAllAdjustments,
     fetchCourtHours,
     fetchFundTrend,
+    fetchCourtRate,
   ]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -453,6 +482,7 @@ export function useFunds(currentUser: CurrentUser | null) {
     pendingSessions,
     allAdjustments,
     courtHours,
+    courtRate,
     courtHoursAlertThreshold: COURT_HOURS_ALERT_THRESHOLD,
     loading,
     error,
