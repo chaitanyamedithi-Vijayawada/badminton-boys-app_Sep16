@@ -729,12 +729,21 @@ interface FundManagerCardProps {
 function FundManagerCard({ playerBalances, remainingHours, courtRate }: FundManagerCardProps) {
   const [collapsed, setCollapsed] = useState(true);
 
-  const courtFloat  = remainingHours * courtRate;            // still owed to fund holder
-  const members     = playerBalances.filter(p => p.name !== FUND_HOLDER_NAME);
-  const membersNet  = members.reduce((s, p) => s + p.balance, 0);
-  const holder      = playerBalances.find(p => p.name === FUND_HOLDER_NAME);
-  const clubFund    = membersNet + courtFloat;
-  const rows        = [...members].sort((a, b) => b.balance - a.balance);
+  const courtFloat  = remainingHours * courtRate;            // value of unplayed court hours
+  const holderRaw   = playerBalances.find(p => p.name === FUND_HOLDER_NAME);
+
+  // Arun is listed like any other player, but his balance is his court float
+  // (value of unplayed hours), not his raw transaction ledger. Everyone —
+  // Arun included — is summed into the Treasurer total.
+  type FundRow = { id: string; name: string; balance: number; receivables?: number; payables?: number; cashier?: boolean; raw?: number };
+  const rows: FundRow[] = playerBalances
+    .filter(p => p.name !== FUND_HOLDER_NAME)
+    .map(p => ({ id: p.id, name: p.name, balance: p.balance, receivables: p.receivables, payables: p.payables }));
+  if (holderRaw) {
+    rows.push({ id: holderRaw.id, name: holderRaw.name, balance: courtFloat, cashier: true, raw: holderRaw.balance });
+  }
+  rows.sort((a, b) => b.balance - a.balance);
+  const treasurer = rows.reduce((s, p) => s + p.balance, 0);
 
   return (
     <Card>
@@ -751,32 +760,16 @@ function FundManagerCard({ playerBalances, remainingHours, courtRate }: FundMana
       {/* Summary — always visible */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Treasurer</p>
-          <p className="text-xl font-bold text-violet-300">{fmtAmt(clubFund)}</p>
-          <p className="text-[10px] text-gray-500 mt-0.5">(all players money)</p>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Total Fund</p>
+          <p className="text-xl font-bold text-violet-300">{fmtAmt(treasurer)}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">(all players)</p>
         </div>
         <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Owed to Arun</p>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Court $ left</p>
           <p className="text-xl font-bold text-violet-300">{fmtAmt(courtFloat)}</p>
           <p className="text-[10px] text-gray-500 mt-0.5">{remainingHours.toFixed(1)} hrs × ${courtRate.toFixed(2)}</p>
         </div>
       </div>
-
-      {/* Fund holder "to receive" — always visible */}
-      {holder && (
-        <div className="flex items-center justify-between py-2 px-1 mt-2 border-t border-gray-800">
-          <div>
-            <p className="text-white text-sm font-medium">
-              {holder.name} <span className="text-[10px] text-gray-500">· court float</span>
-            </p>
-            <p className="text-[10px] text-gray-500">raw ledger: {fmtAmt(holder.balance)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold text-violet-300">{fmtAmt(courtFloat)}</p>
-            <p className="text-[10px] text-gray-500">to receive</p>
-          </div>
-        </div>
-      )}
 
       {collapsed && (
         <p className="text-gray-500 text-xs text-center py-1 mt-1">
@@ -798,9 +791,16 @@ function FundManagerCard({ playerBalances, remainingHours, courtRate }: FundMana
               className="flex items-center py-2 px-1"
               style={i < rows.length - 1 ? { borderBottom: '1px solid rgba(31,41,55,0.6)' } : undefined}
             >
-              <span className="flex-1 text-white text-sm truncate pr-2">{p.name}</span>
-              <span className="w-16 text-right text-xs text-gray-300">${(p.receivables ?? 0).toFixed(2)}</span>
-              <span className="w-16 text-right text-xs text-gray-400">${(p.payables ?? 0).toFixed(2)}</span>
+              <span className="flex-1 min-w-0 pr-2">
+                <span className="text-white text-sm block truncate">
+                  {p.name}{p.cashier ? <span className="text-[10px] text-gray-500"> · cashier</span> : null}
+                </span>
+                {p.cashier && p.raw !== undefined && (
+                  <span className="text-[10px] text-gray-500">raw ledger: {fmtAmt(p.raw)}</span>
+                )}
+              </span>
+              <span className="w-16 text-right text-xs text-gray-300">{p.receivables != null ? `$${p.receivables.toFixed(2)}` : '—'}</span>
+              <span className="w-16 text-right text-xs text-gray-400">{p.payables != null ? `$${p.payables.toFixed(2)}` : '—'}</span>
               <span className={`w-20 text-right text-sm font-semibold ${balColor(p.balance)}`}>{fmtAmt(p.balance)}</span>
             </div>
           ))}
