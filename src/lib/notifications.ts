@@ -55,6 +55,17 @@ export async function notifyWaitlistPromoted(playerName: string, day: 'saturday'
   );
 }
 
+// Notify a player who got bumped from an accepted spot back onto the waitlist
+// (e.g. a court closed when the lineup shrank).
+export async function notifyWaitlistDemoted(playerName: string, day: 'saturday' | 'wednesday') {
+  const label = day === 'saturday' ? 'Saturday' : 'Wednesday';
+  await sendPushToPlayer(
+    playerName,
+    '📋 Moved to the waitlist',
+    `${label}'s lineup changed and a court closed — you're back on the waitlist for now.`,
+  );
+}
+
 export async function notifyRsvp(playerName: string, day: string, status: 'going' | 'skip', totalGoing: number) {
   const dayLabel = day === 'saturday' ? 'Saturday' : 'Wednesday';
   if (status === 'going') {
