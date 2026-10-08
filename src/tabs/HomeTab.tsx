@@ -371,9 +371,18 @@ function SessionCard({ day }: { day: Day }) {
       }
     }
 
-    await loadRSVPs();
-  }, [myName, guestHost, guestName, guestLevel, guestData, day, targetDayRsvps, setGuestData, loadRSVPs, showToast]);
+       await loadRSVPs();
 
+    // Adding a guest (and, in on-behalf mode, auto-RSVPing the host) grows the
+    // lineup — it can open a court (promoting a waitlister) or push a later-voting
+    // member past capacity (bumping them to the waitlist). Project the "after"
+    // state and let notifyWaitlistChanges diff it against the current lineup.
+    const afterRsvps = { ...(targetDayRsvps ?? {}) };
+    if (onBehalf && targetDayRsvps[host] !== 'going' && targetDayRsvps[host] !== 'skip') {
+      afterRsvps[host] = 'going';
+    }
+    notifyWaitlistChanges(afterRsvps, [...(guestData[day] ?? []), { name, brought_by: host }]);
+  }, [myName, guestHost, guestName, guestLevel, guestData, day, targetDayRsvps, setGuestData, loadRSVPs, showToast, notifyWaitlistChanges]);
   const handleRemoveGuest = useCallback(async (index: number) => {
     if (!myName) return;
     if (cutoffPassed) { showToast('Cannot remove guests after cutoff'); return; }
