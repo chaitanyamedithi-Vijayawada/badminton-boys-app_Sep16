@@ -292,6 +292,7 @@ function SessionCard({ day }: { day: Day }) {
     // notifyWaitlistChanges diffs before/after and only pushes to players
     // whose accepted/waitlist status actually changed, so it's safe either way.
     notifyWaitlistChanges({ ...currentRsvps, [myName]: status }, guestData[day] ?? []);
+      }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData, notifyWaitlistChanges]);
 
   // -------------------------------------------------------------------------
   // Guest management
