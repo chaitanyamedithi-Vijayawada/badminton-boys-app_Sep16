@@ -76,6 +76,35 @@ export function computeWaitlist(attendees: Attendee[]): WaitlistResult {
   };
 }
 
+// Build the attendee list from raw RSVPs + guests + voted-at timestamps and
+// compute the waitlist. Shared by useWaitlist (live view) and the promotion
+// detection in HomeTab, so both use identical ordering rules.
+export function computeWaitlistFrom(
+  rsvps: Record<string, 'going' | 'skip'>,
+  guests: { name: string; brought_by?: string }[],
+  timestamps: Record<string, string>,
+): WaitlistResult {
+  const memberAttendees: Attendee[] = Object.entries(rsvps)
+    .filter(([, s]) => s === 'going')
+    .map(([name]) => ({ name, isGuest: false, votedAt: timestamps[name] || '' }));
+  const guestAttendees: Attendee[] = guests.map(g => ({
+    name: g.name,
+    isGuest: true,
+    broughtBy: g.brought_by,
+    votedAt: (g.brought_by ? (timestamps[g.brought_by] || '') : '') + '~guest',
+  }));
+  return computeWaitlist([...memberAttendees, ...guestAttendees]);
+}
+
+// Member names that moved from waitlisted (before) to accepted (after) — i.e.
+// got promoted when a spot opened. Guests are ignored (we only notify members).
+export function newlyPromoted(before: WaitlistResult, after: WaitlistResult): string[] {
+  const wasWaitlisted = new Set(before.waitlisted.filter(a => !a.isGuest).map(a => a.name));
+  return after.accepted
+    .filter(a => !a.isGuest && wasWaitlisted.has(a.name))
+    .map(a => a.name);
+}
+
 // Utility: split a WaitlistResult into player names vs guest info for callers
 // that need them separately (e.g. cost calculation, match scheduler).
 export function splitAttendees(list: Attendee[]): {
