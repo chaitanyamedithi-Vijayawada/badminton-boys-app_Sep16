@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { computeWaitlist, type Attendee, type WaitlistResult } from '../lib/waitlist';
+import { computeWaitlistFrom, type WaitlistResult } from '../lib/waitlist';
 import type { Day } from '../types';
 
 export interface UseWaitlistResult extends WaitlistResult {
@@ -30,28 +30,9 @@ export function useWaitlist(day: Day): UseWaitlistResult {
     const rsvps = rsvpData[day] ?? {};
     const guests = guestData[day] ?? [];
     const timestamps = rsvpTimestamps[day] ?? {};
-
-    // Members who voted 'going'. Their voted_at drives ordering.
-    const memberAttendees: Attendee[] = Object.entries(rsvps)
-      .filter(([, s]) => s === 'going')
-      .map(([name]) => ({
-        name,
-        isGuest: false,
-        votedAt: timestamps[name] || '',
-      }));
-
-    // Guests inherit their host's voted_at plus a tiny suffix so they sort
-    // right AFTER their host (not before), preserving the intent that "host
-    // votes → their guest is with them". This keeps hosts from being pushed
-    // to waitlist by their own guests.
-    const guestAttendees: Attendee[] = guests.map(g => ({
-      name: g.name,
-      isGuest: true,
-      broughtBy: g.brought_by,
-      votedAt: (g.brought_by ? (timestamps[g.brought_by] || '') : '') + '~guest',
-    }));
-
-    return computeWaitlist([...memberAttendees, ...guestAttendees]);
+    // Shared builder: members who voted 'going' (ordered by voted_at) + guests
+    // (which sort right after their host). See computeWaitlistFrom.
+    return computeWaitlistFrom(rsvps, guests, timestamps);
   }, [rsvpData, guestData, rsvpTimestamps, day]);
 
   return {
