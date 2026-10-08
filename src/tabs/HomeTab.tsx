@@ -6,13 +6,13 @@ import { supabase } from '../lib/supabase';
 import { notifyTransferSubmitted } from '../lib/notifications';
 import { getCutoffInfo, isVotingClosed, isSessionEndPassed, fetchServerTimeOffset, isWednesdayVotingOpen, isSaturdayVotingOpen } from '../lib/cutoff';
 import type { Day, RsvpStatus, GuestLevel } from '../types';
-import { notifyRsvp } from '../lib/notifications';
+import { notifyRsvp, notifyWaitlistPromoted } from '../lib/notifications';
 import ExtraSessionCard from '../components/ExtraSessionCard';
 import BroadcastBanner from '../components/BroadcastBanner';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { getNextWeekday, formatDate, getUpcomingSessionWeekKey, makeInitials, parseCourtSplit, courtSplitCourtHours } from '../lib/constants';
 import { useWaitlist } from '../hooks/useWaitlist';
-import { MAX_COURTS, capacityFor, courtsOpenFor } from '../lib/waitlist';
+import { MAX_COURTS, capacityFor, courtsOpenFor, computeWaitlistFrom, newlyPromoted } from '../lib/waitlist';
 
 // LEVEL_LABELS is only used inside the guest modal — colocated with LEVEL_COLORS for clarity
 const LEVEL_LABELS: Record<GuestLevel, string> = { E: 'Experienced', I: 'Intermediate', B: 'Beginner' };
@@ -217,6 +217,21 @@ function SessionCard({ day }: { day: Day }) {
   // -------------------------------------------------------------------------
   const targetDayRsvps = rsvpData[day];
 
+  // When a player drops out, the next waitlisted member(s) auto-promote into
+  // the freed spot. Diff the waitlist before vs after the drop and push a
+  // "you're in" notification to each member who just moved up.
+  const notifyPromotions = useCallback((
+    afterRsvps: Record<string, 'going' | 'skip'>,
+    afterGuests: { name: string; brought_by?: string }[],
+  ) => {
+    const ts = rsvpTimestamps[day] ?? {};
+    const toG = (gs: { name: string; brought_by?: string }[]) =>
+      gs.map(g => ({ name: g.name, brought_by: g.brought_by }));
+    const before = computeWaitlistFrom(rsvpData[day] ?? {}, toG(guestData[day] ?? []), ts);
+    const after = computeWaitlistFrom(afterRsvps, toG(afterGuests), ts);
+    newlyPromoted(before, after).forEach(n => { void notifyWaitlistPromoted(n, day); });
+  }, [day, rsvpData, guestData, rsvpTimestamps]);
+
   const handleRsvp = useCallback(async (status: RsvpStatus) => {
     if (!myName) { showToast('Please select your name first'); return; }
     if (cutoffPassed && status === 'skip') { showToast('Cannot cancel after cutoff'); return; }
@@ -265,7 +280,10 @@ function SessionCard({ day }: { day: Day }) {
     const nextGoingPlayers = Object.values(nextRsvps).filter(v => v === 'going').length;
     const guestsCount = (guestData[day] ?? []).length;
     notifyRsvp(myName, day, status, nextGoingPlayers + guestsCount);
-  }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData]);
+
+    // A drop frees a spot → notify whoever just moved off the waitlist.
+    if (status === 'skip') notifyPromotions({ ...currentRsvps, [myName]: 'skip' }, guestData[day] ?? []);
+  }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData, notifyPromotions]);
 
   // -------------------------------------------------------------------------
   // Guest management
@@ -389,8 +407,10 @@ function SessionCard({ day }: { day: Day }) {
     await supabase.from('attendance').delete()
       .eq('week', week).eq('day', day).eq('player_name', playerName);
     await loadRSVPs();
+    // Removing a player frees a spot → notify any promoted waitlister.
+    notifyPromotions({ ...(targetDayRsvps ?? {}), [playerName]: 'skip' }, guestData[day] ?? []);
     showToast(`${playerName} removed ✓`);
-  }, [day, showToast, loadRSVPs, verifyAdminPin]);
+  }, [day, showToast, loadRSVPs, verifyAdminPin, notifyPromotions, targetDayRsvps, guestData]);
 
   const handleAdminAddPlayer = useCallback(async (playerName: string) => {
     const week = getUpcomingSessionWeekKey(day);
@@ -411,6 +431,7 @@ function SessionCard({ day }: { day: Day }) {
     if (!window.confirm(`Remove guest of ${broughtBy}?`)) return;
     const week = getUpcomingSessionWeekKey(day);
     const hostGuests = guests.filter(g => g.brought_by === broughtBy);
+    const removed = hostGuests[index];
     const updated = hostGuests.filter((_, i) => i !== index);
     if (updated.length === 0) {
       await supabase.from('guests').delete()
@@ -422,8 +443,10 @@ function SessionCard({ day }: { day: Day }) {
       );
     }
     await loadRSVPs();
+    // Removing a guest frees a spot → notify any promoted waitlister.
+    notifyPromotions(rsvpData[day] ?? {}, guests.filter(g => g !== removed));
     showToast('Guest removed ✓');
-  }, [day, guests, showToast, loadRSVPs, verifyAdminPin]);
+  }, [day, guests, showToast, loadRSVPs, verifyAdminPin, notifyPromotions, rsvpData]);
 
   // -------------------------------------------------------------------------
   // Status badge
