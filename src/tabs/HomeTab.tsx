@@ -287,8 +287,11 @@ function SessionCard({ day }: { day: Day }) {
     notifyRsvp(myName, day, status, nextGoingPlayers + guestsCount);
 
     // A drop changes the lineup → notify anyone promoted or bumped.
-    if (status === 'skip') notifyWaitlistChanges({ ...currentRsvps, [myName]: 'skip' }, guestData[day] ?? []);
-  }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData, notifyWaitlistChanges]);
+        // Any vote shifts the lineup: a join can open a court (promoting
+    // waitlisters), a drop can close one (bumping accepted players).
+    // notifyWaitlistChanges diffs before/after and only pushes to players
+    // whose accepted/waitlist status actually changed, so it's safe either way.
+    notifyWaitlistChanges({ ...currentRsvps, [myName]: status }, guestData[day] ?? []);
 
   // -------------------------------------------------------------------------
   // Guest management
