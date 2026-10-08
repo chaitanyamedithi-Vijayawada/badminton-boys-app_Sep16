@@ -440,9 +440,11 @@ function SessionCard({ day }: { day: Day }) {
       { week, day, player_name: playerName },
       { onConflict: 'week,day,player_name' }
     );
-    await loadRSVPs();
+        await loadRSVPs();
+    // Adding a player can open a court → notify anyone promoted off the waitlist.
+    notifyWaitlistChanges({ ...(targetDayRsvps ?? {}), [playerName]: 'going' }, guestData[day] ?? []);
     showToast(`${playerName} added ✓`);
-  }, [day, showToast, loadRSVPs]);
+  }, [day, showToast, loadRSVPs, notifyWaitlistChanges, targetDayRsvps, guestData]);
 
   const handleAdminRemoveGuest = useCallback(async (broughtBy: string, index: number) => {
     if (!verifyAdminPin()) return;
