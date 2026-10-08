@@ -46,7 +46,17 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify(payload),
     });
 
-    const result = await response.json();
+        const result = await response.json();
+
+    // Log OneSignal's actual outcome so delivery is debuggable from Supabase logs.
+    // A 200 can still mean 0 recipients (e.g. "All included players are not subscribed").
+    console.log("OneSignal result:", JSON.stringify({
+      http_status: response.status,
+      id: result.id,
+      recipients: result.recipients,
+      errors: result.errors,
+      target: body.filters ?? body.included_segments ?? "All",
+    }));
 
     return new Response(JSON.stringify({ ok: true, result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
