@@ -105,6 +105,16 @@ export function newlyPromoted(before: WaitlistResult, after: WaitlistResult): st
     .map(a => a.name);
 }
 
+// Member names that moved from accepted (before) to waitlisted (after) — i.e.
+// got bumped when a court closed (total dropped below a court threshold) or
+// guests pushed them down the order. Guests are ignored (we only notify members).
+export function newlyDemoted(before: WaitlistResult, after: WaitlistResult): string[] {
+  const wasAccepted = new Set(before.accepted.filter(a => !a.isGuest).map(a => a.name));
+  return after.waitlisted
+    .filter(a => !a.isGuest && wasAccepted.has(a.name))
+    .map(a => a.name);
+}
+
 // Utility: split a WaitlistResult into player names vs guest info for callers
 // that need them separately (e.g. cost calculation, match scheduler).
 export function splitAttendees(list: Attendee[]): {
