@@ -2,21 +2,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const OS_APP_ID = 'd4b596d7-2437-46e4-b883-cf06b43bc590';
 
-async function sendPush(title: string, message: string, adminOnly = false) {
+async function postNotification(body: Record<string, unknown>) {
   try {
-    const body: Record<string, unknown> = {
-      app_id: OS_APP_ID,
-      headings: { en: title },
-      contents: { en: message },
-      url: 'https://langleybadmintonboys.netlify.app',
-    };
-
-    if (adminOnly) {
-      body.filters = [{ field: 'tag', key: 'is_admin', relation: '=', value: 'true' }];
-    } else {
-      body.included_segments = ['All'];
-    }
-
     await fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
       method: 'POST',
       headers: {
@@ -29,6 +16,43 @@ async function sendPush(title: string, message: string, adminOnly = false) {
   } catch (e) {
     console.log('Push error:', e);
   }
+}
+
+async function sendPush(title: string, message: string, adminOnly = false) {
+  const body: Record<string, unknown> = {
+    app_id: OS_APP_ID,
+    headings: { en: title },
+    contents: { en: message },
+    url: 'https://langleybadmintonboys.netlify.app',
+  };
+  if (adminOnly) {
+    body.filters = [{ field: 'tag', key: 'is_admin', relation: '=', value: 'true' }];
+  } else {
+    body.included_segments = ['All'];
+  }
+  await postNotification(body);
+}
+
+// Targeted push to a single player, matched by the player_name tag that
+// registerPlayerForNotifications sets on each device.
+async function sendPushToPlayer(playerName: string, title: string, message: string) {
+  await postNotification({
+    app_id: OS_APP_ID,
+    headings: { en: title },
+    contents: { en: message },
+    url: 'https://langleybadmintonboys.netlify.app',
+    filters: [{ field: 'tag', key: 'player_name', relation: '=', value: playerName }],
+  });
+}
+
+// Notify a player who just moved off the waitlist into an accepted spot.
+export async function notifyWaitlistPromoted(playerName: string, day: 'saturday' | 'wednesday') {
+  const label = day === 'saturday' ? 'Saturday' : 'Wednesday';
+  await sendPushToPlayer(
+    playerName,
+    "🏸 You're in!",
+    `A spot opened up — you're off the waitlist for ${label}'s session.`,
+  );
 }
 
 export async function notifyRsvp(playerName: string, day: string, status: 'going' | 'skip', totalGoing: number) {
