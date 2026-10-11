@@ -172,7 +172,7 @@ interface CourtHoursCardProps {
   showAlert: boolean;
 }
 function CourtHoursCard({ courtHours, threshold, showAlert }: CourtHoursCardProps) {
-  const { used, remaining } = courtHours;
+  const { remaining } = courtHours;
   const isLow = remaining < threshold;
   return (
     <Card className={showAlert && isLow ? 'border-orange-700' : ''}>
@@ -186,15 +186,9 @@ function CourtHoursCard({ courtHours, threshold, showAlert }: CourtHoursCardProp
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-gray-500 text-xs mb-1">Used</p>
-          <p className="text-orange-400 text-2xl font-bold">{fmtHrs(used)}</p>
-        </div>
-        <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
-          <p className="text-gray-500 text-xs mb-1">Balance</p>
-          <p className={`text-2xl font-bold ${balColor(remaining)}`}>{fmtHrs(remaining)}</p>
-        </div>
+      <div className="bg-white/[0.05] border border-violet-400/10 rounded-lg p-3 text-center">
+        <p className="text-gray-500 text-xs mb-1">Balance</p>
+        <p className={`text-2xl font-bold ${balColor(remaining)}`}>{fmtHrs(remaining)}</p>
       </div>
     </Card>
   );
