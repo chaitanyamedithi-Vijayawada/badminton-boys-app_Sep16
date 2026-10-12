@@ -12,6 +12,8 @@ const LEVEL_COLORS: Record<GuestLevel, string> = {
   B: 'bg-amber-900/50 text-amber-400 border-amber-700/40',
 };
 const LEVEL_LABELS: Record<GuestLevel, string> = { E: 'Experienced', I: 'Intermediate', B: 'Beginner' };
+// Max guests a player can bring to an extra session (families welcome).
+const MAX_EXTRA_GUESTS = 4;
 
 export default function ExtraSessionCard({ session }: { session: ExtraSession }) {
   const {
@@ -77,7 +79,7 @@ export default function ExtraSessionCard({ session }: { session: ExtraSession })
   }, [myName, session.id, cutoffPassed, showToast, loadExtraSessionRsvps]);
 
   const handleAddGuest = useCallback(() => {
-    if (!myName || myGuestCount >= 2) return;
+    if (!myName || myGuestCount >= MAX_EXTRA_GUESTS) return;
     setGuestName('');
     setGuestLevel('I');
     setGuestModal(true);
@@ -382,13 +384,13 @@ export default function ExtraSessionCard({ session }: { session: ExtraSession })
             <div className="flex items-center gap-2">
               <UserPlus size={14} className="text-slate-400" />
               <span className="text-xs text-slate-400">
-                Guests ({myGuestCount}/2)
+                Guests ({myGuestCount}/{MAX_EXTRA_GUESTS})
                 {myStatus === 'skip' && (
                   <span className="text-amber-400 ml-1">— you'll be charged for your guests</span>
                 )}
               </span>
             </div>
-            {myGuestCount < 2 && !cutoffPassed && (
+            {myGuestCount < MAX_EXTRA_GUESTS && !cutoffPassed && (
               <button
                 onClick={handleAddGuest}
                 className="flex items-center gap-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
