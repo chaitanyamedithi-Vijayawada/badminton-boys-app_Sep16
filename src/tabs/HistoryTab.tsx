@@ -52,6 +52,7 @@ interface ExtraSessionGroup {
   perPerson: number;
   totalPeople: number;
   players: string[];
+  guests: { name: string; brought_by?: string; level?: GuestLevel }[];
   isDeducted: boolean;
   hours: number;
 }
@@ -210,7 +211,7 @@ export default function HistoryTab() {
     attendanceData, players, ratePerCourt, courtData,
     completedSessions, guestData, currentUser, myName,
     loadAttendance, loadPlayers, loadCompletedSessions, verifyAdminPin, showToast,
-    extraSessions, extraSessionRsvps, loadExtraSessions, handleUpdateSessionPlayerHours, handleUpdateSessionCourts,
+    extraSessions, extraSessionRsvps, extraSessionGuests, loadExtraSessions, handleUpdateSessionPlayerHours, handleUpdateSessionCourts,
   } = useApp();
 
   const isAdmin = currentUser?.role === 'admin';
@@ -291,6 +292,14 @@ export default function HistoryTab() {
       .map(s => {
         const rsvps = extraSessionRsvps.filter(r => r.session_id === s.id && r.status === 'going');
         const goingPlayers = rsvps.map(r => r.player_name);
+        const guests = extraSessionGuests
+          .filter(g => g.session_id === s.id)
+          .flatMap(row => {
+            try {
+              const fr = JSON.parse(row.friends) as { name: string; level?: GuestLevel }[];
+              return fr.map(f => ({ name: f.name, level: f.level, brought_by: row.brought_by }));
+            } catch { return []; }
+          });
         const totalPeople = s.players_count ?? goingPlayers.length;
         const totalCost = s.total_cost ?? (s.courts.length * ratePerCourt);
         const perPerson = s.per_person ?? (totalPeople > 0 ? totalCost / totalPeople : 0);
@@ -315,11 +324,12 @@ export default function HistoryTab() {
           perPerson,
           totalPeople,
           players: goingPlayers,
+          guests,
           isDeducted: !!s.auto_deducted,
           hours: sessionHours,
         };
       });
-  }, [extraSessions, extraSessionRsvps, ratePerCourt]);
+  }, [extraSessions, extraSessionRsvps, extraSessionGuests, ratePerCourt]);
 
   // ── Unified sorted list ──────────────────────────────────────────────────────
   const allSessions = useMemo((): UnifiedSession[] => {
@@ -945,6 +955,13 @@ export default function HistoryTab() {
               </div>
             );
           })}
+          {session.guests.map((g, i) => (
+            <div key={`guest-${i}`} className="flex items-center gap-1.5 bg-cyan-400/10 border border-cyan-400/15 rounded-full px-2 py-1">
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: 'rgba(14,116,144,0.2)', color: '#22d3ee' }}>G</div>
+              <span className="text-xs text-slate-300">{g.name}</span>
+              {g.brought_by && <span className="text-[10px] text-slate-500">by {g.brought_by}</span>}
+            </div>
+          ))}
         </div>
 
         {/* Admin controls */}
