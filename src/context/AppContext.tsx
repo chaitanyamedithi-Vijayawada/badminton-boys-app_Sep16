@@ -1094,7 +1094,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       playersCount: cs.players_count ?? goingNames.length,
       perPerson, allPlayerNames: goingNames,
       players: notifyPlayers.map(p => ({
-        ...p, email: emailMap[p.name] ?? '', guestCount: 0,
+        ...p, email: emailMap[p.name] ?? '', guestCount: p.guestCount ?? 0,
       })),
     });
 
