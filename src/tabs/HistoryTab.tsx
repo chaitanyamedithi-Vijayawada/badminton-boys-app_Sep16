@@ -450,9 +450,25 @@ export default function HistoryTab() {
           }
         }
         if (t.session_id) sessionMeta[String(t.session_id)] = { balanceAfter: running, time };
-        if (t.type === 'match_charge' && t.note.startsWith('Extra Session —')) {
+        // Extra-session charges have no session_id. Both the player's own share
+        // ("Extra Session — … · <date>") and each guest share they were billed
+        // ("Guest Charge — … · Extra Session … · <date>") end with the session
+        // date. Accumulate all of them by date so the row shows the FULL charge
+        // (self + guests), with the running balance after the last one.
+        const isExtraCharge =
+          t.type === 'match_charge' &&
+          (t.note.startsWith('Extra Session —') ||
+            (t.note.startsWith('Guest Charge —') && t.note.includes('Extra Session')));
+        if (isExtraCharge) {
           const dm = t.note.match(/(\d{4}-\d{2}-\d{2})\s*$/);
-          if (dm) extraChargeByDate[dm[1]] = { charge: Math.abs(t.amount), balanceAfter: running, time };
+          if (dm) {
+            const prev = extraChargeByDate[dm[1]];
+            extraChargeByDate[dm[1]] = {
+              charge: (prev?.charge ?? 0) + Math.abs(t.amount),
+              balanceAfter: running,
+              time,
+            };
+          }
         }
       });
       setPlayerLedger({ chargeBySession, sessionMeta, extraChargeByDate, totalTopUps, totalCharged, topUps, miscCharges });
