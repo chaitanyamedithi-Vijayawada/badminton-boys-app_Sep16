@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { uploadAvatarFor, removeAvatarFor } from '../lib/avatar';
+import { getPushStatus, enablePush, onPushStatusChange, type PushStatus } from '../lib/notifications';
 import { makeInitials, THEMES, getSavedTheme, applyTheme, type ThemeId } from '../lib/constants';
 import { Delete } from 'lucide-react';
 import type { TabId } from '../types';
@@ -72,6 +73,32 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
   const [shirtOpen, setShirtOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [tabsOpen, setTabsOpen] = useState(false);
+
+  // Per-device push notification status, shown in the profile modal so players
+  // can see whether they'll get reminders and turn them on themselves.
+  const [pushStatus, setPushStatus] = useState<PushStatus | 'loading'>('loading');
+  const [enablingPush, setEnablingPush] = useState(false);
+
+  useEffect(() => {
+    if (!showModal || !myName) return;
+    let active = true;
+    const refresh = () => getPushStatus().then(s => { if (active) setPushStatus(s); });
+    refresh();
+    const unsub = onPushStatusChange(refresh);
+    return () => { active = false; unsub(); };
+  }, [showModal, myName]);
+
+  const handleEnablePush = async () => {
+    if (!myName) return;
+    setEnablingPush(true);
+    try {
+      const admin1 = settings.admin1 || 'Eswar';
+      const admin2 = settings.admin2 || 'Arun';
+      setPushStatus(await enablePush(myName, [admin1, admin2]));
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   const TAB_MANAGEMENT: { id: TabId; label: string; icon: string }[] = [
     { id: 'sessions',   label: 'Sessions',   icon: '🏠' },
@@ -452,6 +479,46 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
                           }}
                         >✕</button>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Notifications status — lets players see and fix their own
+                    push state (biggest cause of missed reminders is an expired
+                    or never-granted subscription on their device). */}
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...settingRowStyle, cursor: 'default' }}>
+                    <span style={settingLabelStyle}>🔔 Notifications</span>
+                    {pushStatus === 'loading' ? (
+                      <span style={settingValueStyle}>…</span>
+                    ) : pushStatus === 'on' ? (
+                      <span style={{ ...settingValueStyle, color: '#34d399', fontWeight: 700 }}>On</span>
+                    ) : pushStatus === 'blocked' ? (
+                      <span style={{ ...settingValueStyle, color: '#f87171', fontWeight: 700 }}>Blocked</span>
+                    ) : pushStatus === 'unavailable' ? (
+                      <span style={{ ...settingValueStyle, color: '#8b93a7' }}>Not available</span>
+                    ) : (
+                      <button
+                        onClick={handleEnablePush}
+                        disabled={enablingPush}
+                        style={{
+                          fontSize: 12, fontWeight: 700, cursor: enablingPush ? 'wait' : 'pointer',
+                          padding: '4px 12px', borderRadius: 8,
+                          background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+                          color: 'var(--accent)',
+                        }}
+                      >{enablingPush ? 'Enabling…' : 'Off — Enable'}</button>
+                    )}
+                  </div>
+                  {pushStatus === 'blocked' && (
+                    <div style={{ fontSize: 11, color: '#64748b', padding: '0 2px 8px' }}>
+                      Notifications are blocked. Enable them for this site in your browser settings.
+                    </div>
+                  )}
+                  {pushStatus === 'unavailable' && (
+                    <div style={{ fontSize: 11, color: '#64748b', padding: '0 2px 8px' }}>
+                      Add Badminton Boys to your Home Screen to get notifications.
                     </div>
                   )}
                 </div>

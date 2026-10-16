@@ -242,7 +242,93 @@ export function registerPlayerForNotifications(playerName: string, adminNames: s
 
 interface OneSignalInstance {
   login(id: string): Promise<void>;
-  User: { addTag(key: string, value: string): Promise<void> };
+  User: {
+    addTag(key: string, value: string): Promise<void>;
+    PushSubscription?: {
+      optedIn?: boolean;
+      optIn(): Promise<void>;
+      addEventListener(event: 'change', cb: (ev: unknown) => void): void;
+      removeEventListener(event: 'change', cb: (ev: unknown) => void): void;
+    };
+  };
+  Notifications?: {
+    permission: boolean;
+    permissionNative?: NotificationPermission;
+    isPushSupported?(): boolean;
+    requestPermission(): Promise<void>;
+    addEventListener(event: 'permissionChange', cb: (granted: boolean) => void): void;
+    removeEventListener(event: 'permissionChange', cb: (granted: boolean) => void): void;
+  };
+}
+
+// ── Per-device push status (for the Profile "Notifications" indicator) ────────
+// 'on'          = permission granted AND opted in on this device
+// 'off'         = can subscribe but hasn't (default permission / opted out)
+// 'blocked'     = browser permission denied — can't re-prompt, must fix in settings
+// 'unavailable' = push unsupported here (e.g. iOS Safari tab before Home-Screen install)
+export type PushStatus = 'on' | 'off' | 'blocked' | 'unavailable';
+
+// Run a function once OneSignal is ready, resolving null if the SDK never loads
+// (push is strictly optional — the app must work without it).
+function withOneSignal<T>(fn: (os: OneSignalInstance) => Promise<T> | T): Promise<T | null> {
+  return new Promise((resolve) => {
+    const w = window as Window & { OneSignalDeferred?: ((os: OneSignalInstance) => Promise<void> | void)[] };
+    if (!w.OneSignalDeferred) { resolve(null); return; }
+    let settled = false;
+    const done = (v: T | null) => { if (!settled) { settled = true; resolve(v); } };
+    w.OneSignalDeferred.push(async (OneSignal) => {
+      try { done(await fn(OneSignal)); } catch { done(null); }
+    });
+    // Safety net: if OneSignal never initializes, don't hang the caller.
+    setTimeout(() => done(null), 4000);
+  });
+}
+
+export async function getPushStatus(): Promise<PushStatus> {
+  const status = await withOneSignal<PushStatus>((OneSignal) => {
+    const N = OneSignal.Notifications;
+    if (N?.isPushSupported && !N.isPushSupported()) return 'unavailable';
+    if (N?.permissionNative === 'denied') return 'blocked';
+    const optedIn = OneSignal.User?.PushSubscription?.optedIn;
+    if (optedIn === true && N?.permission === true) return 'on';
+    return 'off';
+  });
+  return status ?? 'unavailable';
+}
+
+// Prompt + opt in, then re-apply the identity tags so the new subscription is
+// immediately targetable by player_name (same tags registerPlayerForNotifications sets).
+export async function enablePush(playerName: string, adminNames: string[]): Promise<PushStatus> {
+  await withOneSignal(async (OneSignal) => {
+    await OneSignal.Notifications?.requestPermission();
+    await OneSignal.User?.PushSubscription?.optIn();
+    await OneSignal.login(playerName);
+    await OneSignal.User.addTag('player_name', playerName);
+    await OneSignal.User.addTag('is_admin', adminNames.includes(playerName) ? 'true' : 'false');
+  });
+  return getPushStatus();
+}
+
+// Fire `cb` whenever permission or subscription state changes. Returns an
+// unsubscribe function.
+export function onPushStatusChange(cb: () => void): () => void {
+  let unsub = () => {};
+  const w = window as Window & { OneSignalDeferred?: ((os: OneSignalInstance) => Promise<void> | void)[] };
+  if (!w.OneSignalDeferred) return unsub;
+  w.OneSignalDeferred.push((OneSignal) => {
+    try {
+      const h = () => cb();
+      OneSignal.Notifications?.addEventListener?.('permissionChange', h);
+      OneSignal.User?.PushSubscription?.addEventListener?.('change', h);
+      unsub = () => {
+        try {
+          OneSignal.Notifications?.removeEventListener?.('permissionChange', h);
+          OneSignal.User?.PushSubscription?.removeEventListener?.('change', h);
+        } catch { /* ignore */ }
+      };
+    } catch { /* ignore */ }
+  });
+  return () => unsub();
 }
 
 export async function notifyTransferSubmitted(playerName: string, amount: number) {
