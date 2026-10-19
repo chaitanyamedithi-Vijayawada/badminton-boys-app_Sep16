@@ -6,13 +6,13 @@ import { supabase } from '../lib/supabase';
 import { notifyTransferSubmitted } from '../lib/notifications';
 import { getCutoffInfo, isVotingClosed, isSessionEndPassed, fetchServerTimeOffset, isWednesdayVotingOpen, isSaturdayVotingOpen } from '../lib/cutoff';
 import type { Day, RsvpStatus, GuestLevel } from '../types';
-import { notifyRsvp, notifyWaitlistPromoted, notifyWaitlistDemoted } from '../lib/notifications';
+import { notifyRsvp } from '../lib/notifications';
 import ExtraSessionCard from '../components/ExtraSessionCard';
 import BroadcastBanner from '../components/BroadcastBanner';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { getNextWeekday, formatDate, getUpcomingSessionWeekKey, makeInitials, parseCourtSplit, courtSplitCourtHours } from '../lib/constants';
 import { useWaitlist } from '../hooks/useWaitlist';
-import { MAX_COURTS, capacityFor, courtsOpenFor, computeWaitlistFrom, newlyPromoted, newlyDemoted } from '../lib/waitlist';
+import { MAX_COURTS, capacityFor, courtsOpenFor } from '../lib/waitlist';
 
 // LEVEL_LABELS is only used inside the guest modal — colocated with LEVEL_COLORS for clarity
 const LEVEL_LABELS: Record<GuestLevel, string> = { E: 'Experienced', I: 'Intermediate', B: 'Beginner' };
@@ -217,25 +217,10 @@ function SessionCard({ day }: { day: Day }) {
   // -------------------------------------------------------------------------
   const targetDayRsvps = rsvpData[day];
 
-  // When a player drops out, the next waitlisted member(s) auto-promote into
-  // the freed spot. Diff the waitlist before vs after the drop and push a
-  // "you're in" notification to each member who just moved up.
-  // A change to the lineup can move members BOTH ways: a freed spot promotes a
-  // waitlister (→ "you're in"), and a closed court can bump an accepted player
-  // back to the waitlist (→ "moved to waitlist"). Diff the current state
-  // ("before") against the hypothetical "after" and push to each.
-  const notifyWaitlistChanges = useCallback((
-    afterRsvps: Record<string, 'going' | 'skip'>,
-    afterGuests: { name: string; brought_by?: string }[],
-  ) => {
-    const ts = rsvpTimestamps[day] ?? {};
-    const toG = (gs: { name: string; brought_by?: string }[]) =>
-      gs.map(g => ({ name: g.name, brought_by: g.brought_by }));
-    const before = computeWaitlistFrom(rsvpData[day] ?? {}, toG(guestData[day] ?? []), ts);
-    const after = computeWaitlistFrom(afterRsvps, toG(afterGuests), ts);
-    newlyPromoted(before, after).forEach(n => { void notifyWaitlistPromoted(n, day); });
-    newlyDemoted(before, after).forEach(n => { void notifyWaitlistDemoted(n, day); });
-  }, [day, rsvpData, guestData, rsvpTimestamps]);
+  // Accept/waitlist change notifications are sent SERVER-SIDE (the
+  // `waitlist-notify` edge function + cron) so they fire reliably regardless of
+  // who is online. The client intentionally no longer pushes them here — it
+  // only shows the on-screen toasts below.
 
   const handleRsvp = useCallback(async (status: RsvpStatus) => {
     if (!myName) { showToast('Please select your name first'); return; }
@@ -286,13 +271,7 @@ function SessionCard({ day }: { day: Day }) {
     const guestsCount = (guestData[day] ?? []).length;
     notifyRsvp(myName, day, status, nextGoingPlayers + guestsCount);
 
-    // A drop changes the lineup → notify anyone promoted or bumped.
-        // Any vote shifts the lineup: a join can open a court (promoting
-    // waitlisters), a drop can close one (bumping accepted players).
-    // notifyWaitlistChanges diffs before/after and only pushes to players
-    // whose accepted/waitlist status actually changed, so it's safe either way.
-    notifyWaitlistChanges({ ...currentRsvps, [myName]: status }, guestData[day] ?? []);
-      }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData, notifyWaitlistChanges]);
+      }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData]);
 
   // -------------------------------------------------------------------------
   // Guest management
@@ -377,16 +356,7 @@ function SessionCard({ day }: { day: Day }) {
 
        await loadRSVPs();
 
-    // Adding a guest (and, in on-behalf mode, auto-RSVPing the host) grows the
-    // lineup — it can open a court (promoting a waitlister) or push a later-voting
-    // member past capacity (bumping them to the waitlist). Project the "after"
-    // state and let notifyWaitlistChanges diff it against the current lineup.
-    const afterRsvps = { ...(targetDayRsvps ?? {}) };
-    if (onBehalf && targetDayRsvps[host] !== 'going' && targetDayRsvps[host] !== 'skip') {
-      afterRsvps[host] = 'going';
-    }
-    notifyWaitlistChanges(afterRsvps, [...(guestData[day] ?? []), { name, brought_by: host }]);
-  }, [myName, guestHost, guestName, guestLevel, guestData, day, targetDayRsvps, setGuestData, loadRSVPs, showToast, notifyWaitlistChanges]);
+  }, [myName, guestHost, guestName, guestLevel, guestData, day, targetDayRsvps, setGuestData, loadRSVPs, showToast]);
   const handleRemoveGuest = useCallback(async (index: number) => {
     if (!myName) return;
     if (cutoffPassed) { showToast('Cannot remove guests after cutoff'); return; }
@@ -425,10 +395,8 @@ function SessionCard({ day }: { day: Day }) {
     await supabase.from('attendance').delete()
       .eq('week', week).eq('day', day).eq('player_name', playerName);
     await loadRSVPs();
-    // Removing a player changes the lineup → notify anyone promoted or bumped.
-    notifyWaitlistChanges({ ...(targetDayRsvps ?? {}), [playerName]: 'skip' }, guestData[day] ?? []);
     showToast(`${playerName} removed ✓`);
-  }, [day, showToast, loadRSVPs, verifyAdminPin, notifyWaitlistChanges, targetDayRsvps, guestData]);
+  }, [day, showToast, loadRSVPs, verifyAdminPin]);
 
   const handleAdminAddPlayer = useCallback(async (playerName: string) => {
     const week = getUpcomingSessionWeekKey(day);
@@ -441,17 +409,14 @@ function SessionCard({ day }: { day: Day }) {
       { onConflict: 'week,day,player_name' }
     );
         await loadRSVPs();
-    // Adding a player can open a court → notify anyone promoted off the waitlist.
-    notifyWaitlistChanges({ ...(targetDayRsvps ?? {}), [playerName]: 'going' }, guestData[day] ?? []);
     showToast(`${playerName} added ✓`);
-  }, [day, showToast, loadRSVPs, notifyWaitlistChanges, targetDayRsvps, guestData]);
+  }, [day, showToast, loadRSVPs]);
 
   const handleAdminRemoveGuest = useCallback(async (broughtBy: string, index: number) => {
     if (!verifyAdminPin()) return;
     if (!window.confirm(`Remove guest of ${broughtBy}?`)) return;
     const week = getUpcomingSessionWeekKey(day);
     const hostGuests = guests.filter(g => g.brought_by === broughtBy);
-    const removed = hostGuests[index];
     const updated = hostGuests.filter((_, i) => i !== index);
     if (updated.length === 0) {
       await supabase.from('guests').delete()
@@ -463,10 +428,8 @@ function SessionCard({ day }: { day: Day }) {
       );
     }
     await loadRSVPs();
-    // Removing a guest changes the lineup → notify anyone promoted or bumped.
-    notifyWaitlistChanges(rsvpData[day] ?? {}, guests.filter(g => g !== removed));
     showToast('Guest removed ✓');
-  }, [day, guests, showToast, loadRSVPs, verifyAdminPin, notifyWaitlistChanges, rsvpData]);
+  }, [day, guests, showToast, loadRSVPs, verifyAdminPin]);
 
   // -------------------------------------------------------------------------
   // Status badge
