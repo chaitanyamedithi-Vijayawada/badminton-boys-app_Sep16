@@ -32,6 +32,7 @@ interface AttendeeItem {
   isGuest: boolean;
   broughtBy?: string;
   level?: GuestLevel;
+  added_at?: string;   // guest's own add-time (guests.created_at)
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +183,7 @@ function SessionCard({ day }: { day: Day }) {
       isGuest: true,
       broughtBy: g.brought_by,
       level: g.level as GuestLevel | undefined,
+      added_at: g.added_at,
     })),
   ];
 
@@ -935,9 +937,9 @@ function SessionCard({ day }: { day: Day }) {
                           {formatVotedAt(rsvpTimestamps[day][a.name])}
                         </span>
                       )}
-                      {a.isGuest && a.broughtBy && rsvpTimestamps[day]?.[a.broughtBy] && (
+                      {a.isGuest && a.added_at && (
                         <span className="text-[10px] text-slate-500">
-                          {formatVotedAt(rsvpTimestamps[day][a.broughtBy])}
+                          {formatVotedAt(a.added_at)}
                         </span>
                       )}
                       {!a.isGuest && !alreadyCompleted && (

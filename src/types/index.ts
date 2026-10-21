@@ -61,6 +61,7 @@ export interface GuestEntry {
   name: string;
   brought_by?: string;
   level?: GuestLevel;
+  added_at?: string;   // when the guest was added (guests.created_at), for waitlist ordering + display
 }
 
 export interface GuestData {
