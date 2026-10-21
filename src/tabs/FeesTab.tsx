@@ -641,6 +641,123 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
   );
 }
 
+// ── Transaction ledger (standard debit / credit / running-balance view) ───────
+// Constant colour per subject so the ledger is scannable at a glance.
+const SUBJECT_COLOR = {
+  open:  '#a3e635',  // opening balance — lime
+  sat:   '#7dd3fc',  // Saturday — sky
+  mid:   '#a78bfa',  // Tuesday / Wednesday — violet
+  dep:   '#34d399',  // deposit / top-up — green
+  extra: '#fbbf24',  // extra session — amber
+  guest: '#f0abfc',  // guest charge — pink
+  misc:  '#5eead4',  // birdie / misc — teal
+  adj:   '#94a3b8',  // adjustment — slate
+} as const;
+
+function classifySubject(t: Transaction): { label: string; color: string } {
+  const note = t.note ?? '';
+  if (t.type === 'top_up') {
+    if (/opening balance/i.test(note)) return { label: 'Opening balance', color: SUBJECT_COLOR.open };
+    return { label: 'Deposit', color: SUBJECT_COLOR.dep };
+  }
+  if (/guest charge/i.test(note)) {
+    const m = note.match(/Guest Charge\s*—\s*(.+?)\s+hosted by/i);
+    return { label: m ? `Guest: ${m[1].trim()}` : 'Guest', color: SUBJECT_COLOR.guest };
+  }
+  if (/extra session/i.test(note)) {
+    const m = note.match(/Extra Session\s*—\s*([^·]+)/i);
+    return { label: m ? `Extra: ${m[1].trim()}` : 'Extra session', color: SUBJECT_COLOR.extra };
+  }
+  if (/adjustment/i.test(note)) return { label: 'Adjustment', color: SUBJECT_COLOR.adj };
+  if (t.type === 'misc_charge') return { label: note || 'Misc charge', color: SUBJECT_COLOR.misc };
+  if (/saturday/i.test(note)) return { label: 'Saturday badminton', color: SUBJECT_COLOR.sat };
+  if (/wednesday/i.test(note)) return { label: 'Wednesday badminton', color: SUBJECT_COLOR.mid };
+  if (/tuesday/i.test(note)) return { label: 'Tuesday badminton', color: SUBJECT_COLOR.mid };
+  return { label: LABELS[t.type] ?? t.type, color: SUBJECT_COLOR.misc };
+}
+
+// Compact "Oct 3" date (Pacific), handling both full timestamps and date-only notes.
+const fmtDateShort = (d: string): string => {
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d);
+  return date.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', ...(m ? {} : { timeZone: 'America/Vancouver' }),
+  });
+};
+
+function LedgerTable({ transactions }: { transactions: Transaction[] }) {
+  const visible = transactions
+    .filter(t => ['match_charge', 'misc_charge', 'top_up', 'adjustment'].includes(t.type))
+    .slice()
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  if (visible.length === 0) {
+    return <p className="text-gray-500 text-sm text-center py-4">No transactions yet</p>;
+  }
+
+  // Running balance oldest → newest. The first "Opening balance" top-up renders
+  // as the opening row: balance only, no debit/credit (matches a bank ledger).
+  let running = 0;
+  const rows = visible.map((t, i) => {
+    const amt = Number(t.amount) || 0;
+    running += amt;
+    const isOpening = i === 0 && t.type === 'top_up' && /opening balance/i.test(t.note ?? '');
+    return {
+      id: t.id,
+      date: isOpening ? 'Opening' : fmtDateShort(t.created_at),
+      subj: classifySubject(t),
+      amt, running, isOpening,
+    };
+  });
+
+  const num2 = (n: number) => Math.abs(n).toFixed(2);
+  const cellBorder = '1px solid rgba(255,255,255,0.05)';
+
+  return (
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 300 }}>
+        <colgroup>
+          <col style={{ width: 44 }} /><col /><col style={{ width: 48 }} />
+          <col style={{ width: 48 }} /><col style={{ width: 58 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {['Date', 'Description', 'Debit', 'Credit', 'Balance'].map((h, idx) => (
+              <th key={h} style={{
+                textAlign: idx >= 2 ? 'right' : 'left', fontSize: 9.5, fontWeight: 700,
+                letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9aa3b2',
+                padding: '7px 5px', borderBottom: '1px solid rgba(255,255,255,0.12)', whiteSpace: 'nowrap',
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.id} style={r.isOpening ? { background: 'rgba(163,230,53,0.07)' } : undefined}>
+              <td style={{ padding: '7px 5px', fontSize: 10.5, color: '#8b93a7', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.date}</td>
+              <td style={{ padding: '7px 5px', borderBottom: cellBorder }}>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 11.5, lineHeight: 1.25, color: r.subj.color, fontWeight: r.isOpening ? 700 : 500, wordBreak: 'break-word' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: r.subj.color, flex: '0 0 auto', position: 'relative', top: 1 }} />
+                  {r.subj.label}
+                </span>
+              </td>
+              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#f87171', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                {!r.isOpening && r.amt < 0 ? num2(r.amt) : ''}
+              </td>
+              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#34d399', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                {!r.isOpening && r.amt > 0 ? num2(r.amt) : ''}
+              </td>
+              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: r.running < 0 ? '#f87171' : '#f1f5f9', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                {r.running < 0 ? '-' : ''}{num2(r.running)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 interface PlayerFundViewProps {
   myBalance: number;
   fundBalance: number;
@@ -673,34 +790,7 @@ function PlayerFundView({ myBalance, fundBalance, myTransactions }: PlayerFundVi
       </Card>
       <Card>
         <SectionTitle title="My Transactions" />
-        <div className="flex flex-col">
-          {(() => {
-            const visible = myTransactions.filter(
-              t => t.type === 'match_charge' || t.type === 'misc_charge' || t.type === 'top_up' || t.type === 'adjustment'
-            );
-            return visible.map((t, i) => (
-              <div key={t.id}>
-                <div className="flex items-center justify-between py-3">
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className={`text-sm font-medium ${TX_COLOR[t.type] ?? 'text-gray-400'}`}>
-                      {LABELS[t.type] ?? t.type}
-                    </p>
-                    <p className="text-gray-500 text-xs mt-0.5">
-                      {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
-                    </p>
-                  </div>
-                  <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
-                    {fmtSigned(Number(t.amount))}
-                  </p>
-                </div>
-                {i < visible.length - 1 && <Divider />}
-              </div>
-            ));
-          })()}
-          {myTransactions.length === 0 && (
-            <p className="text-gray-500 text-sm text-center py-4">No transactions yet</p>
-          )}
-        </div>
+        <LedgerTable transactions={myTransactions} />
       </Card>
     </div>
   );
@@ -896,30 +986,7 @@ export default function FeesTab() {
           {/* Admin personal transactions */}
           <Card>
             <SectionTitle title="My Transactions" />
-            <div className="flex flex-col">
-              {myTransactions.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No transactions yet</p>
-              ) : (
-                myTransactions.map((t, i) => (
-                  <div key={t.id}>
-                    <div className="flex items-center justify-between py-3">
-                      <div className="flex-1 min-w-0 pr-3">
-                        <p className={`text-sm font-medium ${TX_COLOR[t.type] ?? 'text-gray-400'}`}>
-                          {LABELS[t.type] ?? t.type}
-                        </p>
-                        <p className="text-gray-500 text-xs mt-0.5">
-                          {fmtDate(t.created_at)}{t.note ? ` · ${t.note}` : ''}
-                        </p>
-                      </div>
-                      <p className={`text-sm font-semibold ${Number(t.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
-                        {fmtSigned(Number(t.amount))}
-                      </p>
-                    </div>
-                    {i < myTransactions.length - 1 && <Divider />}
-                  </div>
-                ))
-              )}
-            </div>
+            <LedgerTable transactions={myTransactions} />
           </Card>
         </>
       ) : (
