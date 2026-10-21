@@ -383,17 +383,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const { data: guests } = await supabase
       .from('guests')
-      .select('week, day, brought_by, friends')
+      .select('week, day, brought_by, friends, created_at')
       .in('week', uniqueWeeks);
     const newGuestData: GuestData = { saturday: [], wednesday: [] };
-    (guests ?? []).forEach((g: { week: string; day: Day; brought_by: string; friends: string }) => {
+    (guests ?? []).forEach((g: { week: string; day: Day; brought_by: string; friends: string; created_at: string }) => {
       if (g.day !== 'saturday' && g.day !== 'wednesday') return;
       const effective = g.day === 'saturday' ? satWeek : wedWeek;
       if (g.week !== effective) return;
       let friends: { name: string; level?: string }[] = [];
       try { friends = JSON.parse(g.friends); } catch { /* ignore */ }
       friends.forEach(f => {
-        newGuestData[g.day].push({ name: f.name, brought_by: g.brought_by, level: f.level as GuestEntry['level'] });
+        newGuestData[g.day].push({ name: f.name, brought_by: g.brought_by, level: f.level as GuestEntry['level'], added_at: g.created_at });
       });
     });
     setGuestData(newGuestData);

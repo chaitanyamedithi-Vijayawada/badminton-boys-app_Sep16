@@ -81,17 +81,20 @@ export function computeWaitlist(attendees: Attendee[]): WaitlistResult {
 // detection in HomeTab, so both use identical ordering rules.
 export function computeWaitlistFrom(
   rsvps: Record<string, 'going' | 'skip'>,
-  guests: { name: string; brought_by?: string }[],
+  guests: { name: string; brought_by?: string; added_at?: string }[],
   timestamps: Record<string, string>,
 ): WaitlistResult {
   const memberAttendees: Attendee[] = Object.entries(rsvps)
     .filter(([, s]) => s === 'going')
     .map(([name]) => ({ name, isGuest: false, votedAt: timestamps[name] || '' }));
+  // Order guests by their OWN add-time (guests.created_at), so a late-added
+  // guest slots in where it was added rather than inheriting the host's early
+  // vote time. Falls back to the host's vote time only if add-time is missing.
   const guestAttendees: Attendee[] = guests.map(g => ({
     name: g.name,
     isGuest: true,
     broughtBy: g.brought_by,
-    votedAt: (g.brought_by ? (timestamps[g.brought_by] || '') : '') + '~guest',
+    votedAt: g.added_at || (g.brought_by ? (timestamps[g.brought_by] || '') : ''),
   }));
   return computeWaitlist([...memberAttendees, ...guestAttendees]);
 }
