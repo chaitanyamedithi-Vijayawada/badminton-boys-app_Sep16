@@ -67,7 +67,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
 
         {/* Logo */}
         <img
-          src="/17136e7b-a3eb-407f-a161-d5cc2705afab.png"
+          src="/logo-mark.png"
           alt="Badminton Boys"
           style={{
             width: 200, height: 200,
