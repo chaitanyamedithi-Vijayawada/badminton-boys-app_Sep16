@@ -685,7 +685,23 @@ const fmtDateShort = (d: string): string => {
   });
 };
 
+// Pacific "YYYY-MM" bucket for a timestamp, so months group by the club's TZ.
+const monthKeyOf = (iso: string): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Vancouver', year: 'numeric', month: '2-digit',
+  }).formatToParts(new Date(iso));
+  const y = parts.find(p => p.type === 'year')?.value ?? '';
+  const m = parts.find(p => p.type === 'month')?.value ?? '';
+  return `${y}-${m}`;
+};
+const monthLabelOf = (mk: string): string => {
+  const [y, m] = mk.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+};
+
 function LedgerTable({ transactions }: { transactions: Transaction[] }) {
+  const [month, setMonth] = useState<string>('all');
+
   const visible = transactions
     .filter(t => ['match_charge', 'misc_charge', 'top_up', 'adjustment'].includes(t.type))
     .slice()
@@ -695,66 +711,110 @@ function LedgerTable({ transactions }: { transactions: Transaction[] }) {
     return <p className="text-gray-500 text-sm text-center py-4">No transactions yet</p>;
   }
 
-  // Running balance oldest → newest. The first "Opening balance" top-up renders
-  // as the opening row: balance only, no debit/credit (matches a bank ledger).
+  // Running balance is ALWAYS computed oldest → newest so each row's Balance is
+  // the true balance as of that date, even when filtered to one month.
   let running = 0;
-  const rows = visible.map((t, i) => {
+  const allRows = visible.map((t, i) => {
     const amt = Number(t.amount) || 0;
     running += amt;
     const isOpening = i === 0 && t.type === 'top_up' && /opening balance/i.test(t.note ?? '');
     return {
       id: t.id,
+      mk: monthKeyOf(t.created_at),
       date: isOpening ? 'Opening' : fmtDateShort(t.created_at),
       subj: classifySubject(t),
       amt, running, isOpening,
     };
   });
 
+  const months = Array.from(new Set(allRows.map(r => r.mk))).sort().reverse();
+  const scoped = month === 'all' ? allRows : allRows.filter(r => r.mk === month);
+
+  // When one month is shown, a "brought forward" row carries in the balance from
+  // prior months so the filtered view still reconciles.
+  let broughtForward: number | null = null;
+  if (month !== 'all' && scoped.length > 0) {
+    const firstIdx = allRows.findIndex(r => r.id === scoped[0].id);
+    if (firstIdx > 0) broughtForward = allRows[firstIdx - 1].running;
+  }
+
+  // Newest first for display; the opening / brought-forward context sits at the bottom.
+  const display = [...scoped].reverse();
+
   const num2 = (n: number) => Math.abs(n).toFixed(2);
   const cellBorder = '1px solid rgba(255,255,255,0.05)';
 
   return (
-    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 300 }}>
-        <colgroup>
-          <col style={{ width: 44 }} /><col /><col style={{ width: 48 }} />
-          <col style={{ width: 48 }} /><col style={{ width: 58 }} />
-        </colgroup>
-        <thead>
-          <tr>
-            {['Date', 'Description', 'Debit', 'Credit', 'Balance'].map((h, idx) => (
-              <th key={h} style={{
-                textAlign: idx >= 2 ? 'right' : 'left', fontSize: 9.5, fontWeight: 700,
-                letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9aa3b2',
-                padding: '7px 5px', borderBottom: '1px solid rgba(255,255,255,0.12)', whiteSpace: 'nowrap',
-              }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(r => (
-            <tr key={r.id} style={r.isOpening ? { background: 'rgba(163,230,53,0.07)' } : undefined}>
-              <td style={{ padding: '7px 5px', fontSize: 10.5, color: '#8b93a7', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.date}</td>
-              <td style={{ padding: '7px 5px', borderBottom: cellBorder }}>
-                <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 11.5, lineHeight: 1.25, color: r.subj.color, fontWeight: r.isOpening ? 700 : 500, wordBreak: 'break-word' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: r.subj.color, flex: '0 0 auto', position: 'relative', top: 1 }} />
-                  {r.subj.label}
-                </span>
-              </td>
-              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#f87171', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
-                {!r.isOpening && r.amt < 0 ? num2(r.amt) : ''}
-              </td>
-              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#34d399', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
-                {!r.isOpening && r.amt > 0 ? num2(r.amt) : ''}
-              </td>
-              <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: r.running < 0 ? '#f87171' : '#f1f5f9', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
-                {r.running < 0 ? '-' : ''}{num2(r.running)}
-              </td>
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <select
+          value={month}
+          onChange={e => setMonth(e.target.value)}
+          aria-label="Filter by month"
+          style={{
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(124,92,255,0.25)',
+            color: '#cbd5e1', fontSize: 11, fontWeight: 600, borderRadius: 8, padding: '4px 8px',
+          }}
+        >
+          <option value="all">All months</option>
+          {months.map(mk => <option key={mk} value={mk}>{monthLabelOf(mk)}</option>)}
+        </select>
+      </div>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 300 }}>
+          <colgroup>
+            <col style={{ width: 44 }} /><col /><col style={{ width: 48 }} />
+            <col style={{ width: 48 }} /><col style={{ width: 58 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              {['Date', 'Description', 'Debit', 'Credit', 'Balance'].map((h, idx) => (
+                <th key={h} style={{
+                  textAlign: idx >= 2 ? 'right' : 'left', fontSize: 9.5, fontWeight: 700,
+                  letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9aa3b2',
+                  padding: '7px 5px', borderBottom: '1px solid rgba(255,255,255,0.12)', whiteSpace: 'nowrap',
+                }}>{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {display.map(r => (
+              <tr key={r.id} style={r.isOpening ? { background: 'rgba(163,230,53,0.07)' } : undefined}>
+                <td style={{ padding: '7px 5px', fontSize: 10.5, color: '#8b93a7', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.date}</td>
+                <td style={{ padding: '7px 5px', borderBottom: cellBorder }}>
+                  <span style={{ display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 11.5, lineHeight: 1.25, color: r.subj.color, fontWeight: r.isOpening ? 700 : 500, wordBreak: 'break-word' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: r.subj.color, flex: '0 0 auto', position: 'relative', top: 1 }} />
+                    {r.subj.label}
+                  </span>
+                </td>
+                <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#f87171', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                  {!r.isOpening && r.amt < 0 ? num2(r.amt) : ''}
+                </td>
+                <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, color: '#34d399', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                  {!r.isOpening && r.amt > 0 ? num2(r.amt) : ''}
+                </td>
+                <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: r.running < 0 ? '#f87171' : '#f1f5f9', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                  {r.running < 0 ? '-' : ''}{num2(r.running)}
+                </td>
+              </tr>
+            ))}
+            {broughtForward !== null && (
+              <tr>
+                <td style={{ padding: '7px 5px', fontSize: 10.5, color: '#64748b', borderBottom: cellBorder, whiteSpace: 'nowrap' }}>—</td>
+                <td style={{ padding: '7px 5px', borderBottom: cellBorder }}>
+                  <span style={{ fontSize: 11, fontStyle: 'italic', color: '#8b93a7' }}>Balance brought forward</span>
+                </td>
+                <td style={{ borderBottom: cellBorder }} />
+                <td style={{ borderBottom: cellBorder }} />
+                <td style={{ padding: '7px 5px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: broughtForward < 0 ? '#f87171' : '#94a3b8', borderBottom: cellBorder, fontVariantNumeric: 'tabular-nums' }}>
+                  {broughtForward < 0 ? '-' : ''}{num2(broughtForward)}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
