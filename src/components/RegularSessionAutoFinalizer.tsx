@@ -4,18 +4,20 @@ import { getCompletedWeekKey } from '../lib/constants';
 import { getPacificNow } from '../lib/cutoff';
 import type { Day } from '../types';
 
-// Auto-finalizes a regular (Saturday / Wednesday) session 2 hours after it ends,
+// Auto-finalizes a regular (Saturday / Wednesday) session 1 hour after it ends,
 // so History and charges no longer depend on an admin manually tapping Finalize
-// inside a narrow window. Runs in-browser on whoever has the app open; the DB
-// (week,day) UNIQUE constraint makes concurrent runs safe (see completeSession).
+// inside a narrow window. The 1-hour gap is the review buffer — time to fix the
+// roster (late walk-in, no-show, court change) before charges lock in. Runs
+// in-browser on whoever has the app open; the DB (week,day) UNIQUE constraint
+// makes concurrent runs safe (see completeSession).
 //
-// This only decides WHETHER to attempt — completeSession re-checks the 2h guard,
-// the existing-row guard, and the atomic DB lock, so it is the single source of
-// truth. If the whole club stays offline past the finalize window, the session
-// falls through to the admin "Log past session" tool, exactly as before.
+// This only decides WHETHER to attempt — completeSession re-checks the end-time
+// guard, the existing-row guard, and the atomic DB lock, so it is the single
+// source of truth. If the whole club stays offline past the finalize window, the
+// session falls through to the admin "Log past session" tool, exactly as before.
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;      // re-check every 5 min while open
-const FINALIZE_DELAY_MS = 120 * 60 * 1000;    // 2 hours after session end
+const FINALIZE_DELAY_MS = 60 * 60 * 1000;     // 1 hour after session end
 const REGULAR_DAYS: Day[] = ['saturday', 'wednesday'];
 
 // Stops the same tab from firing a second finalize for one session while the
