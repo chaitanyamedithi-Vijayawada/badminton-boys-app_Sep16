@@ -465,38 +465,50 @@ function MiscChargesSection({ miscCharges, onAdd, onReset }: MiscChargesSectionP
           </Btn>
         </div>
       )}
-      <div className="flex flex-col">
-        {miscCharges.map((mc, i) => (
-          <div key={mc.id}>
-            <div className="flex items-start justify-between py-3">
-              <div>
-                <p className="text-white text-sm">{mc.note || '—'}</p>
-                <p className="text-gray-500 text-xs mt-0.5">
-                  {fmtDate(mc.created_at)} · ${Number(mc.per_player_amount).toFixed(2)}/player
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-orange-400 text-sm font-semibold">
-                  -${Number(mc.total_amount).toFixed(2)}
-                </p>
-                <button
-                  onClick={() => {
-                    if (!window.confirm(`Reset "${mc.note || 'this charge'}"? This will reverse all player deductions.`)) return;
-                    onReset(mc.id);
-                  }}
-                  className="text-xs text-red-400 hover:text-red-300 mt-1 transition-colors"
-                >
-                  ↩ Reset
-                </button>
-              </div>
-            </div>
-            {i < miscCharges.length - 1 && <Divider />}
-          </div>
-        ))}
-        {miscCharges.length === 0 && !open && (
-          <p className="text-gray-500 text-sm text-center py-2">No misc charges yet</p>
-        )}
-      </div>
+      {miscCharges.length === 0 && !open ? (
+        <p className="text-gray-500 text-sm text-center py-2">No misc charges yet</p>
+      ) : miscCharges.length > 0 && (
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
+          <table style={ADMIN_TABLE}>
+            <colgroup>
+              <col style={{ width: 46 }} /><col /><col style={{ width: 52 }} /><col style={{ width: 66 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {['Date', 'Description', '/Player', 'Amount'].map((h, idx) => (
+                  <th key={h} style={{ ...ADMIN_TH, textAlign: idx >= 2 ? 'right' : 'left' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {miscCharges.map(mc => (
+                <tr key={mc.id}>
+                  <td style={ADMIN_TD_DATE}>{fmtDateShort(mc.created_at)}</td>
+                  <td style={ADMIN_TD}>
+                    <span style={{ ...ADMIN_DESC, color: SUBJECT_COLOR.misc }}>
+                      <span style={{ ...ADMIN_DOT, background: SUBJECT_COLOR.misc }} />
+                      {mc.note || '—'}
+                    </span>
+                  </td>
+                  <td style={{ ...ADMIN_TD_NUM, color: '#cbd5e1' }}>${Number(mc.per_player_amount).toFixed(2)}</td>
+                  <td style={ADMIN_TD_NUM}>
+                    <span style={{ color: '#fb923c', fontWeight: 600 }}>-${Number(mc.total_amount).toFixed(2)}</span>
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(`Reset "${mc.note || 'this charge'}"? This will reverse all player deductions.`)) return;
+                        onReset(mc.id);
+                      }}
+                      style={{ display: 'block', marginLeft: 'auto', marginTop: 3, fontSize: 10, color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      ↩ Reset
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   );
 }
@@ -615,28 +627,44 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
           </Btn>
         </div>
       )}
-      <div className="flex flex-col">
-        {courtPayments.map((cp, i) => (
-          <div key={cp.id}>
-            <div className="flex items-start justify-between py-3">
-              <div>
-                <p className="text-white text-sm">{cp.note || '—'}</p>
-                <p className="text-gray-500 text-xs mt-0.5">
-                  {fmtDate(cp.paid_at)}
-                  {Number(cp.hours_purchased) > 0 ? ` · ${fmtHrs(cp.hours_purchased)} added` : ''}
-                </p>
-              </div>
-              <p className="text-red-400 text-sm font-semibold">
-                -${Number(cp.amount).toFixed(2)}
-              </p>
-            </div>
-            {i < courtPayments.length - 1 && <Divider />}
-          </div>
-        ))}
-        {courtPayments.length === 0 && !open && (
-          <p className="text-gray-500 text-sm text-center py-2">No court payments logged yet</p>
-        )}
-      </div>
+      {courtPayments.length === 0 && !open ? (
+        <p className="text-gray-500 text-sm text-center py-2">No court payments logged yet</p>
+      ) : courtPayments.length > 0 && (
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
+          <table style={ADMIN_TABLE}>
+            <colgroup>
+              <col style={{ width: 46 }} /><col /><col style={{ width: 48 }} /><col style={{ width: 66 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {['Date', 'Description', 'Hours', 'Amount'].map((h, idx) => (
+                  <th key={h} style={{ ...ADMIN_TH, textAlign: idx >= 2 ? 'right' : 'left' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {courtPayments.map(cp => {
+                const isCorrection = /correction|historical|backfill/i.test(cp.note ?? '');
+                const color = isCorrection ? SUBJECT_COLOR.adj : SUBJECT_COLOR.sat;
+                const hrs = Number(cp.hours_purchased) > 0 ? `+${Number(cp.hours_purchased).toFixed(1)}` : '—';
+                return (
+                  <tr key={cp.id}>
+                    <td style={ADMIN_TD_DATE}>{fmtDateShort(cp.paid_at)}</td>
+                    <td style={ADMIN_TD}>
+                      <span style={{ ...ADMIN_DESC, color }}>
+                        <span style={{ ...ADMIN_DOT, background: color }} />
+                        {cp.note || '—'}
+                      </span>
+                    </td>
+                    <td style={{ ...ADMIN_TD_NUM, color: '#cbd5e1' }}>{hrs}</td>
+                    <td style={{ ...ADMIN_TD_NUM, color: '#f87171', fontWeight: 600 }}>-${Number(cp.amount).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   );
 }
@@ -653,6 +681,17 @@ const SUBJECT_COLOR = {
   misc:  '#5eead4',  // birdie / misc — teal
   adj:   '#94a3b8',  // adjustment — slate
 } as const;
+
+// Shared ledger-style table styles, reused by the admin Misc Charges / Court
+// Payments sections so they match the My Transactions ledger.
+const ADMIN_TABLE: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 300 };
+const ADMIN_CELL_BORDER = '1px solid rgba(255,255,255,0.05)';
+const ADMIN_TH: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#9aa3b2', padding: '7px 5px', borderBottom: '1px solid rgba(255,255,255,0.12)', whiteSpace: 'nowrap' };
+const ADMIN_TD: React.CSSProperties = { padding: '7px 5px', borderBottom: ADMIN_CELL_BORDER, verticalAlign: 'top' };
+const ADMIN_TD_DATE: React.CSSProperties = { ...ADMIN_TD, fontSize: 10.5, color: '#8b93a7', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' };
+const ADMIN_TD_NUM: React.CSSProperties = { ...ADMIN_TD, textAlign: 'right', fontSize: 11, fontVariantNumeric: 'tabular-nums' };
+const ADMIN_DESC: React.CSSProperties = { display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 11.5, lineHeight: 1.25, wordBreak: 'break-word' };
+const ADMIN_DOT: React.CSSProperties = { width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', position: 'relative', top: 1 };
 
 function classifySubject(t: Transaction): { label: string; color: string } {
   const note = t.note ?? '';
