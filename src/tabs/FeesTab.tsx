@@ -553,27 +553,39 @@ function AdjustmentsSection({ adjustments }: AdjustmentsSectionProps) {
         </p>
       )}
       {!collapsed && (
-        <div className="flex flex-col">
-          {adjustments.map((a, i) => (
-            <div key={a.id}>
-              <div className="flex items-center justify-between py-3">
-                <div className="flex-1 min-w-0 pr-3">
-                  <p className="text-white text-sm font-medium">{a.player_name ?? 'Unknown'}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    {fmtDate(a.created_at)}{a.note ? ` · ${a.note}` : ''}
-                  </p>
-                </div>
-                <p className={`text-sm font-semibold ${Number(a.amount) >= 0 ? 'text-violet-400' : 'text-red-400'}`}>
-                  {fmtSigned(Number(a.amount))}
-                </p>
-              </div>
-              {i < adjustments.length - 1 && <Divider />}
-            </div>
-          ))}
-          {adjustments.length === 0 && (
-            <p className="text-gray-500 text-sm text-center py-4">No adjustments yet</p>
-          )}
-        </div>
+        adjustments.length === 0 ? (
+          <p className="text-gray-500 text-sm text-center py-4">No adjustments yet</p>
+        ) : (
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
+            <table style={ADMIN_TABLE}>
+              <colgroup><col style={{ width: 46 }} /><col /><col style={{ width: 66 }} /></colgroup>
+              <thead>
+                <tr>
+                  {['Date', 'Player / note', 'Amount'].map((h, idx) => (
+                    <th key={h} style={{ ...ADMIN_TH, textAlign: idx >= 2 ? 'right' : 'left' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {adjustments.map(a => (
+                  <tr key={a.id}>
+                    <td style={ADMIN_TD_DATE}>{fmtDateShort(a.created_at)}</td>
+                    <td style={ADMIN_TD}>
+                      <span style={{ ...ADMIN_DESC, color: SUBJECT_COLOR.adj }}>
+                        <span style={{ ...ADMIN_DOT, background: SUBJECT_COLOR.adj }} />
+                        {a.player_name ?? 'Unknown'}
+                      </span>
+                      {a.note && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2, marginLeft: 13, wordBreak: 'break-word' }}>{a.note}</div>}
+                    </td>
+                    <td style={{ ...ADMIN_TD_NUM, color: Number(a.amount) >= 0 ? '#a78bfa' : '#f87171', fontWeight: 600 }}>
+                      {fmtSigned(Number(a.amount))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
     </Card>
   );
