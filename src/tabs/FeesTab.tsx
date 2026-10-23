@@ -432,6 +432,9 @@ function MiscChargesSection({ miscCharges, onAdd, onReset }: MiscChargesSectionP
   const [note, setNote]   = useState('');
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState('');
+  const [month, setMonth] = useState('all');
+  const monthOpts = monthOptionsOf(miscCharges.map(m => m.created_at));
+  const filtered = month === 'all' ? miscCharges : miscCharges.filter(m => monthKeyOf(m.created_at) === month);
 
   const handleSubmit = async () => {
     const val = parseFloat(total);
@@ -449,9 +452,12 @@ function MiscChargesSection({ miscCharges, onAdd, onReset }: MiscChargesSectionP
     <Card>
       <div className="flex items-center justify-between mb-3">
         <SectionTitle title="Misc Charges" />
-        <Btn size="sm" variant="ghost" onClick={() => setOpen(v => !v)}>
-          {open ? 'Cancel' : '+ Add'}
-        </Btn>
+        <div className="flex items-center gap-2">
+          <MonthSelect value={month} onChange={setMonth} options={monthOpts} />
+          <Btn size="sm" variant="ghost" onClick={() => setOpen(v => !v)}>
+            {open ? 'Cancel' : '+ Add'}
+          </Btn>
+        </div>
       </div>
       {open && (
         <div className="flex flex-col gap-3 mb-4 p-3 bg-white/[0.05] border border-violet-400/10 rounded-lg">
@@ -467,6 +473,8 @@ function MiscChargesSection({ miscCharges, onAdd, onReset }: MiscChargesSectionP
       )}
       {miscCharges.length === 0 && !open ? (
         <p className="text-gray-500 text-sm text-center py-2">No misc charges yet</p>
+      ) : miscCharges.length > 0 && filtered.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-2">No charges in {monthLabelOf(month)}</p>
       ) : miscCharges.length > 0 && (
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
           <table style={ADMIN_TABLE}>
@@ -481,7 +489,7 @@ function MiscChargesSection({ miscCharges, onAdd, onReset }: MiscChargesSectionP
               </tr>
             </thead>
             <tbody>
-              {miscCharges.map(mc => (
+              {filtered.map(mc => (
                 <tr key={mc.id}>
                   <td style={ADMIN_TD_DATE}>{fmtDateShort(mc.created_at)}</td>
                   <td style={ADMIN_TD}>
@@ -535,17 +543,23 @@ interface AdjustmentsSectionProps {
 }
 function AdjustmentsSection({ adjustments }: AdjustmentsSectionProps) {
   const [collapsed, setCollapsed] = useState(true);
+  const [month, setMonth] = useState('all');
+  const monthOpts = monthOptionsOf(adjustments.map(a => a.created_at));
+  const filtered = month === 'all' ? adjustments : adjustments.filter(a => monthKeyOf(a.created_at) === month);
 
   return (
     <Card>
       <div className="flex items-center justify-between mb-3">
         <SectionTitle title="Charge Adjustments" />
-        <button
-          onClick={() => setCollapsed(v => !v)}
-          className="text-xs text-gray-400 hover:text-violet-400 transition-colors border border-gray-700 hover:border-violet-700 px-2 py-1 rounded-lg"
-        >
-          {collapsed ? '▼ Show' : '▲ Hide'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!collapsed && <MonthSelect value={month} onChange={setMonth} options={monthOpts} />}
+          <button
+            onClick={() => setCollapsed(v => !v)}
+            className="text-xs text-gray-400 hover:text-violet-400 transition-colors border border-gray-700 hover:border-violet-700 px-2 py-1 rounded-lg"
+          >
+            {collapsed ? '▼ Show' : '▲ Hide'}
+          </button>
+        </div>
       </div>
       {collapsed && (
         <p className="text-gray-500 text-xs text-center py-1">
@@ -555,6 +569,8 @@ function AdjustmentsSection({ adjustments }: AdjustmentsSectionProps) {
       {!collapsed && (
         adjustments.length === 0 ? (
           <p className="text-gray-500 text-sm text-center py-4">No adjustments yet</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-gray-500 text-sm text-center py-2">No adjustments in {monthLabelOf(month)}</p>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
             <table style={ADMIN_TABLE}>
@@ -567,7 +583,7 @@ function AdjustmentsSection({ adjustments }: AdjustmentsSectionProps) {
                 </tr>
               </thead>
               <tbody>
-                {adjustments.map(a => (
+                {filtered.map(a => (
                   <tr key={a.id}>
                     <td style={ADMIN_TD_DATE}>{fmtDateShort(a.created_at)}</td>
                     <td style={ADMIN_TD}>
@@ -603,6 +619,9 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
   const [paidAt, setPaidAt] = useState('');
   const [busy, setBusy]     = useState(false);
   const [err, setErr]       = useState('');
+  const [month, setMonth]   = useState('all');
+  const monthOpts = monthOptionsOf(courtPayments.map(c => c.paid_at));
+  const filtered = month === 'all' ? courtPayments : courtPayments.filter(c => monthKeyOf(c.paid_at) === month);
 
   const handleSubmit = async () => {
     const val = parseFloat(amount);
@@ -620,9 +639,12 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
     <Card>
       <div className="flex items-center justify-between mb-3">
         <SectionTitle title="Court Payments" />
-        <Btn size="sm" variant="ghost" onClick={() => setOpen(v => !v)}>
-          {open ? 'Cancel' : '+ Add'}
-        </Btn>
+        <div className="flex items-center gap-2">
+          <MonthSelect value={month} onChange={setMonth} options={monthOpts} />
+          <Btn size="sm" variant="ghost" onClick={() => setOpen(v => !v)}>
+            {open ? 'Cancel' : '+ Add'}
+          </Btn>
+        </div>
       </div>
       {open && (
         <div className="flex flex-col gap-3 mb-4 p-3 bg-white/[0.05] border border-violet-400/10 rounded-lg">
@@ -641,6 +663,8 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
       )}
       {courtPayments.length === 0 && !open ? (
         <p className="text-gray-500 text-sm text-center py-2">No court payments logged yet</p>
+      ) : courtPayments.length > 0 && filtered.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-2">No payments in {monthLabelOf(month)}</p>
       ) : courtPayments.length > 0 && (
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '0 -4px' }}>
           <table style={ADMIN_TABLE}>
@@ -655,7 +679,7 @@ function CourtPaymentsSection({ courtPayments, onAdd }: CourtPaymentsSectionProp
               </tr>
             </thead>
             <tbody>
-              {courtPayments.map(cp => {
+              {filtered.map(cp => {
                 const isCorrection = /correction|historical|backfill/i.test(cp.note ?? '');
                 const color = isCorrection ? SUBJECT_COLOR.adj : SUBJECT_COLOR.sat;
                 const hrs = Number(cp.hours_purchased) > 0 ? `+${Number(cp.hours_purchased).toFixed(1)}` : '—';
@@ -704,6 +728,27 @@ const ADMIN_TD_DATE: React.CSSProperties = { ...ADMIN_TD, fontSize: 10.5, color:
 const ADMIN_TD_NUM: React.CSSProperties = { ...ADMIN_TD, textAlign: 'right', fontSize: 11, fontVariantNumeric: 'tabular-nums' };
 const ADMIN_DESC: React.CSSProperties = { display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 11.5, lineHeight: 1.25, wordBreak: 'break-word' };
 const ADMIN_DOT: React.CSSProperties = { width: 7, height: 7, borderRadius: '50%', flex: '0 0 auto', position: 'relative', top: 1 };
+
+const MONTH_SELECT_STYLE: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(124,92,255,0.25)',
+  color: '#cbd5e1', fontSize: 11, fontWeight: 600, borderRadius: 8, padding: '4px 8px',
+};
+
+// Distinct "YYYY-MM" month keys present in a set of dates, newest first.
+const monthOptionsOf = (dates: string[]): string[] =>
+  Array.from(new Set(dates.map(monthKeyOf))).sort().reverse();
+
+// Month + year dropdown (each option is a specific month of a specific year).
+// Hidden when the data spans one month or less, so short lists stay clean.
+function MonthSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+  if (options.length <= 1) return null;
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} aria-label="Filter by month" style={MONTH_SELECT_STYLE}>
+      <option value="all">All months</option>
+      {options.map(mk => <option key={mk} value={mk}>{monthLabelOf(mk)}</option>)}
+    </select>
+  );
+}
 
 function classifySubject(t: Transaction): { label: string; color: string } {
   const note = t.note ?? '';
