@@ -165,7 +165,14 @@ export default function NamePicker() {
       return;
     }
     setSaving(true);
-    await setupPin(selectedName, pin);
+    try {
+      await setupPin(selectedName, pin);
+    } catch {
+      setPinError('Could not set PIN. Please try again.');
+      setConfirmPin('');
+      setSaving(false);
+      return;
+    }
     setMyName(selectedName);
     setShowNamePicker(false);
     setSaving(false);
