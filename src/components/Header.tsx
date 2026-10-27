@@ -188,10 +188,11 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
+  const [verifiedCurrentPin, setVerifiedCurrentPin] = useState('');
 
   const resetPinState = () => {
     setChangePinStep(null);
-    setCurrentPin(''); setNewPin(''); setConfirmPin(''); setPinError('');
+    setCurrentPin(''); setNewPin(''); setConfirmPin(''); setPinError(''); setVerifiedCurrentPin('');
   };
 
   const closeModal = () => { setShowModal(false); resetPinState(); };
@@ -201,7 +202,7 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
     setCurrentPin(p); setPinError('');
     if (p.length === 4 && myName) {
       const ok = await loginWithPin(myName, p);
-      if (ok) { setChangePinStep('new'); setCurrentPin(''); }
+      if (ok) { setVerifiedCurrentPin(p); setChangePinStep('new'); setCurrentPin(''); }
       else { setPinError('Incorrect PIN. Please try again.'); setCurrentPin(''); }
     }
   };
@@ -220,8 +221,13 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
         return;
       }
       if (myName) {
-        await setupPin(myName, newPin);
-        closeModal();
+        try {
+          await setupPin(myName, newPin, verifiedCurrentPin);
+          closeModal();
+        } catch {
+          setPinError('Could not change PIN. Please try again.');
+          setConfirmPin(''); setNewPin(''); setChangePinStep('new');
+        }
       }
     }
   };

@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { COLORS, makeInitials, getWeekKey, getUpcomingSessionWeekKey, getCompletedWeekKey, parseCourtSplit } from '../lib/constants';
 import { getPacificNow, isExtraSessionEnded } from '../lib/cutoff';
 import { computeSessionCost, computePerPerson, computeFinalizeCharges, computeAdjustedCharges } from '../lib/sessionMath';
-import { hashPin, verifyPin } from '../lib/crypto';
 import { notifySessionComplete, sendSessionEmail, registerPlayerForNotifications } from '../lib/notifications';
 import { computeWaitlist, type Attendee } from '../lib/waitlist';
 import type {
@@ -40,7 +39,7 @@ interface AppContextValue {
   // Player PIN login
   isLoggedIn: boolean;
   loginWithPin: (name: string, pin: string) => Promise<boolean>;
-  setupPin: (name: string, pin: string) => Promise<void>;
+  setupPin: (name: string, pin: string, currentPin?: string) => Promise<void>;
   resetPlayerPin: (playerId: string) => Promise<void>;
   logout: () => void;
 
@@ -151,7 +150,7 @@ function buildPlayerFromRow(
     skill: string | null;
     email?: string | null;
     role?: string;
-    pin?: string | null;
+    has_pin?: boolean | null;
     emoji?: string | null;
     archived?: boolean | null;
     shirt_size?: string | null;
@@ -172,7 +171,7 @@ function buildPlayerFromRow(
     initials,
     email: row.email ?? null,
     role: row.role ?? 'player',
-    pin: row.pin ?? null,
+    pin: row.has_pin ? 'set' : null,
     emoji: row.emoji ?? null,
     archived: row.archived ?? false,
     shirt_size: row.shirt_size ?? null,
@@ -229,32 +228,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const loginWithPin = useCallback(async (name: string, pin: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from('players')
-      .select('pin')
-      .eq('name', name)
-      .single();
-    if (!data?.pin) return false;
-    const ok = await verifyPin(pin, data.pin);
-    if (ok) {
+    const { data, error } = await supabase.functions.invoke('pin-auth', {
+      body: { action: 'login', name, pin },
+    });
+    if (error) return false;
+    if (data?.locked) {
+      const mins = Math.max(1, Math.ceil((data.retryAfterSeconds ?? 900) / 60));
+      showToast(`Too many attempts. Try again in ${mins} min.`);
+      return false;
+    }
+    if (data?.ok) {
       setIsLoggedIn(true);
       localStorage.setItem('lb_logged_in', 'true');
+      return true;
     }
-    return ok;
-  }, []);
+    return false;
+  }, [showToast]);
 
-  const setupPin = useCallback(async (name: string, pin: string): Promise<void> => {
-    const hashed = await hashPin(pin);
-    await supabase.from('players').update({ pin: hashed }).eq('name', name);
+  const setupPin = useCallback(async (name: string, pin: string, currentPin?: string): Promise<void> => {
+    const { data, error } = await supabase.functions.invoke('pin-auth', {
+      body: { action: 'set', name, newPin: pin, currentPin: currentPin ?? null },
+    });
+    if (error || !data?.ok) {
+      throw new Error(data?.error || 'setup_failed');
+    }
     setIsLoggedIn(true);
     localStorage.setItem('lb_logged_in', 'true');
     await loadPlayers();
   }, []);
 
   const resetPlayerPin = useCallback(async (playerId: string): Promise<void> => {
-    await supabase.from('players').update({ pin: null }).eq('id', playerId);
+    const { data: s } = await supabase
+      .from('settings').select('value').eq('key', 'admin_pin').maybeSingle();
+    const { data, error } = await supabase.functions.invoke('pin-auth', {
+      body: { action: 'reset', playerId, adminPin: s?.value ?? '' },
+    });
+    if (error || !data?.ok) {
+      showToast('Could not reset PIN. Please try again.');
+      return;
+    }
     await loadPlayers();
-  }, []);
+  }, [showToast]);
 
   const logout = useCallback(() => {
     setMyName('');
@@ -265,7 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Players & Ledger Realignment ──────────────────────────────────────────────
   const [players, setPlayers] = useState<Player[]>([]);
-  const playerRowsRef = useRef<{ id?: string; name: string; skill: string | null; email?: string | null; role?: string; pin?: string | null; emoji?: string | null }[]>([]);
+  const playerRowsRef = useRef<{ id?: string; name: string; skill: string | null; email?: string | null; role?: string; has_pin?: boolean | null; emoji?: string | null }[]>([]);
 
   const loadWallets = useCallback(async () => {
     const { data: txns } = await supabase.from('transactions').select('player_id, amount');
@@ -281,7 +295,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadPlayers = useCallback(async () => {
     const { data: playerRows } = await supabase
   .from('players')
-  .select('id, name, skill, email, role, pin, emoji, archived, shirt_size, avatar_url')
+  .select('id, name, skill, email, role, has_pin, emoji, archived, shirt_size, avatar_url')
   .order('name');
     const { data: txns } = await supabase.from('transactions').select('player_id, amount');
     const balanceMap: Record<string, number> = {};
