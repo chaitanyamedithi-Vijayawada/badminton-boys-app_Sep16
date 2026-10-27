@@ -216,6 +216,47 @@ function VotingLockToggle({ day }: { day: Day }) {
   );
 }
 
+// Admin control for the minimum balance a player must hold to vote Going or
+// add a guest. Stored in settings.min_vote_balance (default 30); 0 disables it.
+function MinVoteBalanceConfig() {
+  const { settings, loadSettings, showToast, verifyAdminPin } = useApp();
+  const [val, setVal] = useState<string>(settings['min_vote_balance'] ?? '30');
+
+  useEffect(() => { setVal(settings['min_vote_balance'] ?? '30'); }, [settings]);
+
+  const save = async () => {
+    if (!verifyAdminPin()) return;
+    const n = parseFloat(val);
+    if (isNaN(n) || n < 0) { showToast('Enter a valid amount (0 to disable)'); return; }
+    await supabase.from('settings').upsert({ key: 'min_vote_balance', value: String(n) }, { onConflict: 'key' });
+    await loadSettings();
+    showToast(n > 0 ? `Minimum balance to vote set to $${n.toFixed(2)}` : 'Minimum-balance gate turned off');
+  };
+
+  return (
+    <div className="bg-white/[0.05] border border-violet-400/10 rounded-xl p-3 mt-2">
+      <div className="text-sm font-medium text-slate-200">Minimum balance to vote</div>
+      <div className="text-[11px] text-slate-500 mt-0.5 mb-2">
+        Players need at least this much to vote Going or add a guest. Set 0 to turn it off. Admins are exempt.
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-slate-400 text-sm">$</span>
+        <input
+          type="number" min="0" step="1" value={val}
+          onChange={e => setVal(e.target.value)}
+          className="w-24 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1 text-sm text-slate-100 focus:outline-none"
+        />
+        <button
+          onClick={save}
+          className="text-xs font-semibold text-violet-300 bg-slate-800/60 border border-slate-700/40 rounded-lg px-3 py-1.5 hover:bg-slate-700/60 transition-colors"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PendingPayments() {
   const { pendingPayments, loadPendingPayments, myName, showToast, players, loadWallets } = useApp();
 
@@ -962,6 +1003,7 @@ export default function AdminTab() {
         <div className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2"><span>🔒</span> Voting Control</div>
         <VotingLockToggle day="saturday" />
         <VotingLockToggle day="wednesday" />
+        <MinVoteBalanceConfig />
       </div>
       <div className="neon-card card-sky mb-4">
         <div className="text-sm font-semibold text-slate-200 mb-3">Court Management</div>
