@@ -83,7 +83,7 @@ function SessionCard({ day }: { day: Day }) {
     myName, rsvpData, guestData, setGuestData, courtData, settings, players,
     showToast, loadRSVPs, ratePerCourt, completedSessions, loadSettings,
     verifyAdminPin, currentUser, isLoggedIn, setShowNamePicker, completeSession,
-    handleSendSessionEmails, rsvpTimestamps, rsvpHours, handleSetRsvpHours,
+    handleSendSessionEmails, rsvpTimestamps, rsvpHours, handleSetRsvpHours, setActiveTab,
   } = useApp();
 
   const [guestModal, setGuestModal] = useState(false);
@@ -125,6 +125,15 @@ function SessionCard({ day }: { day: Day }) {
   const { passed: cutoffPassed, label: cutoffLabel } = getCutoffInfo(day);
   const myGuests = guests.filter(g => g.brought_by === myName);
   const myGuestCount = myGuests.length;
+
+  // Minimum-balance-to-vote gate. Non-admins must hold at least the configured
+  // minimum (settings.min_vote_balance, default $30) to vote Going or add a
+  // guest. Admins are exempt; a minimum of 0 disables the gate. Already-"going"
+  // players keep their spot even if a later charge dips them below it.
+  const myBalance = players.find(p => p.name === myName)?.balance ?? 0;
+  const minVoteBalance = Math.max(0, Number(settings['min_vote_balance'] ?? 30) || 0);
+  const meetsVoteMinimum = isAdmin || minVoteBalance <= 0 || myBalance >= minVoteBalance;
+  const blockedFromGoing = !meetsVoteMinimum && myStatus !== 'going';
 
   // getNextWeekday always returns a future date so sessionDatePast will
   // normally be false — kept for correctness on edge-case date boundaries.
@@ -227,6 +236,10 @@ function SessionCard({ day }: { day: Day }) {
   const handleRsvp = useCallback(async (status: RsvpStatus) => {
     if (!myName) { showToast('Please select your name first'); return; }
     if (cutoffPassed && status === 'skip') { showToast('Cannot cancel after cutoff'); return; }
+    if (status === 'going' && blockedFromGoing) {
+      showToast(`You need $${minVoteBalance.toFixed(0)} to vote — your balance is $${myBalance.toFixed(2)}. Please top up.`);
+      return;
+    }
     const week = getUpcomingSessionWeekKey(day);
     const { error: rsvpErr } = await supabase.from('rsvps').upsert(
       { week, day, player_name: myName, status, voted_at: new Date().toISOString() },
@@ -273,18 +286,22 @@ function SessionCard({ day }: { day: Day }) {
     const guestsCount = (guestData[day] ?? []).length;
     notifyRsvp(myName, day, status, nextGoingPlayers + guestsCount);
 
-      }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData]);
+      }, [myName, day, cutoffPassed, showToast, loadRSVPs, targetDayRsvps, guestData, blockedFromGoing, minVoteBalance, myBalance]);
 
   // -------------------------------------------------------------------------
   // Guest management
   // -------------------------------------------------------------------------
   const handleAddGuest = useCallback(() => {
     if (!myName || myGuestCount >= 2) return;
+    if (!meetsVoteMinimum) {
+      showToast(`You need $${minVoteBalance.toFixed(0)} to add a guest — please top up (balance $${myBalance.toFixed(2)}).`);
+      return;
+    }
     setGuestHost(null);              // self mode
     setGuestName('');
     setGuestLevel('I');
     setGuestModal(true);
-  }, [myName, myGuestCount]);
+  }, [myName, myGuestCount, meetsVoteMinimum, minVoteBalance, myBalance, showToast]);
 
   // Admin-only: open the guest modal in "on behalf of <player>" mode. The host
   // picker inside the modal lets admin choose which player the guest belongs to.
@@ -780,8 +797,11 @@ function SessionCard({ day }: { day: Day }) {
               <div className="flex gap-2 mb-2">
                 <button
                   onClick={() => handleRsvp('going')}
+                  disabled={blockedFromGoing}
                   className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                    myStatus === 'going'
+                    blockedFromGoing
+                      ? 'bg-transparent border-slate-800 text-slate-600 cursor-not-allowed'
+                      : myStatus === 'going'
                       ? 'bg-violet-500 border-violet-500 text-white shadow-[0_0_12px_rgba(124,92,255,0.3)]'
                       : 'bg-transparent border-slate-700 text-slate-300 hover:border-violet-500/50'
                   }`}
@@ -801,6 +821,15 @@ function SessionCard({ day }: { day: Day }) {
                   </button>
                 )}
               </div>
+              {blockedFromGoing && (
+                <div className="flex items-start gap-1.5 mb-3 text-xs text-amber-400 bg-amber-400/8 border border-amber-400/25 rounded-lg px-3 py-2">
+                  <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                  <span>
+                    You need ${minVoteBalance.toFixed(0)} in your balance to vote. Yours is ${myBalance.toFixed(2)}.{' '}
+                    <button onClick={() => setActiveTab('fees')} className="underline font-semibold text-amber-300">Top up →</button>
+                  </span>
+                </div>
+              )}
               {/* Personal status — accepted or waitlisted */}
               {myStatus === 'going' && myWaitState === 'waitlisted' && (
                 <div className="flex items-center gap-1.5 mb-3 text-xs text-amber-400 bg-amber-400/8 border border-amber-400/25 rounded-lg px-3 py-2">
@@ -868,7 +897,11 @@ function SessionCard({ day }: { day: Day }) {
             {myGuestCount < 2 && (
               <button
                 onClick={handleAddGuest}
-                className="flex items-center gap-1 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                disabled={!meetsVoteMinimum}
+                title={!meetsVoteMinimum ? `Needs $${minVoteBalance.toFixed(0)} balance to add a guest` : undefined}
+                className={`flex items-center gap-1 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                  meetsVoteMinimum ? 'bg-violet-600 hover:bg-violet-500' : 'bg-slate-700/60 text-slate-500 cursor-not-allowed'
+                }`}
               >
                 <UserPlus size={12} /> Add guest
               </button>
