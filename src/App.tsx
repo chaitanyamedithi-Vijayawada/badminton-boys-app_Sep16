@@ -17,6 +17,7 @@ const FeesTab = lazy(() => import('./tabs/FeesTab'));
 const AdminTab = lazy(() => import('./tabs/AdminTab'));
 const HistoryTab = lazy(() => import('./tabs/HistoryTab'));
 const MatchTab = lazy(() => import('./tabs/MatchTab'));
+const TournamentTab = lazy(() => import('./tabs/TournamentTab'));
 import { getSavedTheme, applyTheme } from './lib/constants';
 
 function TabContent() {
@@ -32,6 +33,7 @@ function TabContent() {
       {activeTab === 'history' && <HistoryTab />}
       {activeTab === 'admin' && <AdminTab />}
       {activeTab === 'match' && <MatchTab />}
+      {activeTab === 'tournament' && <TournamentTab />}
     </Suspense>
   );
 }
