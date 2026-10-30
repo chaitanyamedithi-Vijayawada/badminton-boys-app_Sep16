@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = "Badminton Boys <notifications@badmintonboys.org>";
+const FROM = "Badminton Boys <notifications@badmintonboys.net>";
 
 interface SessionEmailPayload {
   type: "session";
@@ -116,7 +116,7 @@ function sessionEmailHtml(p: SessionEmailPayload): string {
 
     <!-- Greeting -->
     <div style="font-size:15px;color:#94a3b8;margin-bottom:22px;line-height:1.5;">
-      Hey <strong style="color:#f1f5f9;">${p.playerName}</strong> 👋 — here's your recap for today's session.
+      Hey <strong style="color:#f1f5f9;">${p.playerName}</strong> 👋 — here's your session recap.
     </div>
 
     <!-- Session info chips -->
@@ -187,7 +187,7 @@ function sessionEmailHtml(p: SessionEmailPayload): string {
 
   <!-- Footer -->
   <div style="text-align:center;padding:20px 0 0;font-size:11px;color:#1e3a5f;">
-    Badminton Boys · Surrey Badminton Club · You're receiving this because you played today.
+    Badminton Boys · Langley, BC · You're receiving this because you played in this session.
   </div>
 </div>
 </body>
@@ -256,7 +256,7 @@ function topUpEmailHtml(p: TopUpEmailPayload): string {
   </div>
 
   <div style="text-align:center;padding:20px 12px;color:#334155;font-size:11px;line-height:1.6;">
-    Badminton Boys · Surrey Badminton Club · You're receiving this because a payment was confirmed for you.
+    Badminton Boys · Langley, BC · You're receiving this because a payment was confirmed for you.
   </div>
 </div>
 </body>
@@ -267,7 +267,7 @@ function monthlyEmailHtml(p: MonthlyEmailPayload): string {
   const balColor = balanceColor(p.currentBalance);
   const sessionRows = p.sessionDetails.map(s => {
     const dateStr = new Date(s.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const dayLabel = s.day === "saturday" ? "Sat" : "Tue";
+    const dayLabel = s.day === "saturday" ? "Sat" : "Wed";
     const guestNote = s.guests > 0 ? ` <span style="color:#f59e0b;font-size:11px;">(+${s.guests} guest)</span>` : "";
     const charged = s.perPerson * (1 + s.guests);
     return `<tr>
@@ -456,7 +456,7 @@ Deno.serve(async (req: Request) => {
 
     if (!res.ok) {
       // Resend rejected the send. The message names the exact cause, e.g.
-      // "The badmintonboys.org domain is not verified" or a to-address
+      // "The badmintonboys.net domain is not verified" or a to-address
       // restriction while the account is in test mode.
       console.error("Resend error:", res.status, data);
       return new Response(
