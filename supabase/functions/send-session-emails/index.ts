@@ -90,7 +90,26 @@ Deno.serve(async (req: Request) => {
       const hoursPlayed = cs.courts_count * (cs.session_hours ?? 2);
       const allPlayers = [...sessionPlayers, ...sessionGuests.map(g => g.name)];
 
-      const recipients = dryRun ? [] as string[] : undefined;
+      // dryRun: report who would be emailed; never claim or send.
+      if (dryRun) {
+        results.push({ session_id: cs.id, week: cs.week, day, would_email: sessionPlayers.filter(n => !!nameToEmail[n]) });
+        continue;
+      }
+
+      // Atomically CLAIM this session BEFORE sending. session_emails_sent has a
+      // PRIMARY KEY on session_id, so when the finalize trigger and the cron
+      // both fire in the same minute, only ONE wins this insert — the other
+      // gets an empty result and skips. This is what prevents duplicate sends
+      // (the old check-then-insert let both runs pass the check and send).
+      const { data: claim } = await supabase
+        .from('session_emails_sent')
+        .upsert({ session_id: cs.id, recipients: 0 }, { onConflict: 'session_id', ignoreDuplicates: true })
+        .select();
+      if (!claim || claim.length === 0) {
+        results.push({ session_id: cs.id, day, skipped: 'already_claimed' });
+        continue;
+      }
+
       let eligible = 0;
       let sent = 0;
       let failed = 0;
@@ -103,8 +122,6 @@ Deno.serve(async (req: Request) => {
         const totalDeducted = perPerson * (1 + guestCount);
         const newBalance = balanceMap[nameToId[name]] ?? 0;
         const oldBalance = newBalance + totalDeducted;
-
-        if (dryRun) { recipients!.push(name); continue; }
 
         try {
           const res = await fetch(SEND_EMAIL_URL, {
@@ -138,18 +155,16 @@ Deno.serve(async (req: Request) => {
         await sleep(300); // stay under Resend's 5 req/sec free-tier cap
       }
 
-      if (dryRun) {
-        results.push({ session_id: cs.id, week: cs.week, day, would_email: recipients });
-        continue;
+      // Record the real recipient count. If NOBODY got it (total failure),
+      // release the claim so a later run retries; otherwise keep the claim so
+      // the session is never emailed again.
+      if (sent === 0 && eligible > 0) {
+        await supabase.from('session_emails_sent').delete().eq('session_id', cs.id);
+        results.push({ session_id: cs.id, week: cs.week, day, eligible, sent, failed, released: true });
+      } else {
+        await supabase.from('session_emails_sent').update({ recipients: sent }).eq('session_id', cs.id);
+        results.push({ session_id: cs.id, week: cs.week, day, eligible, sent, failed });
       }
-
-      // Mark emailed only when nothing needed sending or every eligible send
-      // succeeded. A partial/total failure leaves the row unmarked → retried
-      // on the next run, so a Resend outage can't permanently drop a session.
-      if (eligible === 0 || failed === 0) {
-        await supabase.from('session_emails_sent').insert({ session_id: cs.id, recipients: sent });
-      }
-      results.push({ session_id: cs.id, week: cs.week, day, eligible, sent, failed });
     }
 
     return new Response(JSON.stringify({ success: true, dryRun, results }),
