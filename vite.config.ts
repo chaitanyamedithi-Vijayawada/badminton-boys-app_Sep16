@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       // Explicit asset list — NOT ['**/*']. The greedy glob was scooping up
       // Netlify's `_headers` file into the precache manifest; that file 404s
       // when the service worker fetches it, which failed precaching and blocked
@@ -25,12 +25,12 @@ export default defineConfig({
         'fonts/**/*',
       ],
       workbox: {
-        // Core background updating controls. Prompt mode: the new SW waits
-        // until the user clicks "Update now" (main.tsx onNeedRefresh banner)
-        // instead of auto-reloading the page on every detected update — which
-        // was causing the app to refresh constantly on desktop. Safe now that
-        // session finalization runs server-side, not in the client.
-        skipWaiting: false,
+        // Core background updating controls. autoUpdate + skipWaiting keeps
+        // clients current automatically: a new version is applied when the app
+        // is (re)opened, with no "Update now" popup. The aggressive per-60s /
+        // on-focus update polling was removed from main.tsx, so this no longer
+        // causes constant mid-session refreshing on desktop.
+        skipWaiting: true,
         clientsClaim: true,
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}'],

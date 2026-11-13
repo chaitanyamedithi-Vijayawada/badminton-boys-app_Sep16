@@ -64,17 +64,13 @@ function showUpdateBanner() {
 
 if ('serviceWorker' in navigator) {
   updateSW = registerSW({
+    // autoUpdate applies new versions automatically when the app is (re)opened,
+    // with no popup. onNeedRefresh only fires in prompt mode; it's kept wired so
+    // the banner path stays available if we ever switch back. The 60s and
+    // visibilitychange update polling was removed — it caused constant
+    // mid-session refreshing on desktop.
     onNeedRefresh() {
       showUpdateBanner();
-    },
-    onRegisteredSW(_url, registration) {
-      if (!registration) return;
-      // Poll for updates every 60s while the tab is open
-      setInterval(() => { registration.update(); }, 60 * 1000);
-      // Also check immediately whenever the app regains focus/visibility
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') registration.update();
-      });
     },
   });
 }
