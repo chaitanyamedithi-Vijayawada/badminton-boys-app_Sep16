@@ -1,7 +1,7 @@
 export type Day = 'saturday' | 'wednesday';
 export type RsvpStatus = 'going' | 'skip';
 export type PaymentStatus = 'pending' | 'confirmed' | 'rejected';
-export type TabId = 'sessions' | 'players' | 'fees' | 'admin' | 'history' | 'match' | 'tournament';
+export type TabId = 'sessions' | 'players' | 'fees' | 'admin' | 'history' | 'match' | 'tournament' | 'exercises';
 
 export interface MatchAssignment {
   court: number;

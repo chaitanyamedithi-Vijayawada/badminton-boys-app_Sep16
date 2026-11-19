@@ -107,6 +107,7 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
     { id: 'match',      label: 'Match',       icon: '🏸' },
     { id: 'tournament', label: 'Tournament',  icon: '🏆' },
     { id: 'history',    label: 'History',     icon: '📜' },
+    { id: 'exercises',  label: 'Stretch',     icon: '🧘' },
     { id: 'admin',      label: 'Admin',       icon: '⚙️' },
   ];
 
