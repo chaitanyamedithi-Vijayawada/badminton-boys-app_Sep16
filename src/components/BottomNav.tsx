@@ -1,4 +1,4 @@
-import { Home, Swords, Users, DollarSign, Clock, ShieldCheck ,Trophy} from 'lucide-react';
+import { Home, Swords, Users, DollarSign, Clock, ShieldCheck ,Trophy, Dumbbell} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { TabId } from '../types';
@@ -42,10 +42,15 @@ const NAV_ITEMS: NavItemConfig[] = [
     label: 'Admin',
     icon: ShieldCheck,
   },
-  { 
-    id: 'tournament', 
-    label: 'Cup', 
+  {
+    id: 'tournament',
+    label: 'Cup',
     icon: Trophy,
+  },
+  {
+    id: 'exercises',
+    label: 'Stretch',
+    icon: Dumbbell,
   },
 ];
 
