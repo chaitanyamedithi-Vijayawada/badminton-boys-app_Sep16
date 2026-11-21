@@ -48,6 +48,34 @@ export default defineConfig({
               },
             },
           },
+          // Exercise GIFs (Supabase storage, public "warmups" bucket). Saved on
+          // the phone the first time they're seen, then served from the device
+          // — instant and works offline at the court. 40 entries × ~350 KB caps
+          // this at ~14 MB; purgeOnQuotaError drops it first if storage is low.
+          {
+            urlPattern: /\/storage\/v1\/object\/public\/warmups\/.+\.gif$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'warmup-gifs',
+              cacheableResponse: { statuses: [200] },
+              expiration: {
+                maxEntries: 40,
+                maxAgeSeconds: 60 * 60 * 24 * 90, // 90 days
+                purgeOnQuotaError: true,
+              },
+            },
+          },
+          // Exercise list: show the saved copy instantly (and offline), refresh
+          // it in the background when online.
+          {
+            urlPattern: /\/rest\/v1\/warmup_exercises\b/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'warmup-list',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 5, purgeOnQuotaError: true },
+            },
+          },
         ],
       },
       manifest: {

@@ -54,6 +54,7 @@ function Thumb({ ex, accent }: { ex: Exercise; accent: string }) {
     <img
       src={url}
       alt=""
+      crossOrigin="anonymous"
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
@@ -157,6 +158,7 @@ function Routine({ list, accent, onExit }: { list: Exercise[]; accent: string; o
           <img
             src={url}
             alt={ex.name}
+            crossOrigin="anonymous"
             className="w-full max-w-[380px] max-h-[45vh] object-contain rounded-2xl"
             style={{ border: `1px solid ${accent}33` }}
           />
