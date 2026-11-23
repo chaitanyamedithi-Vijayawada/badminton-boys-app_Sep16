@@ -33,7 +33,11 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,ttf}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,ttf,jpg,mp4,webm}'],
+        // splash video must be cached so it plays instantly offline
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // full-size brand masters are for stores/printing, not the app
+        globIgnores: ['**/brand/courtcrew-*'],
         
         // Static Asset cache policies
         runtimeCaching: [
