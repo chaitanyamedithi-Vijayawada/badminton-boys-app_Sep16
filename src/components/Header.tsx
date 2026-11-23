@@ -4,6 +4,7 @@ import { uploadAvatarFor, removeAvatarFor } from '../lib/avatar';
 import { getPushStatus, enablePush, onPushStatusChange, type PushStatus } from '../lib/notifications';
 import { makeInitials, THEMES, getSavedTheme, applyTheme, type ThemeId } from '../lib/constants';
 import { Delete } from 'lucide-react';
+import { canUseBiometrics, biometricLabel, hasPasskeyOnDevice, disablePasskeyOnDevice } from '../lib/passkeys';
 import type { TabId } from '../types';
 
 const PAD = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
@@ -185,6 +186,28 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
     }
   };
   
+  // Face ID on this device (passkeys). Turning it on happens at the next PIN
+  // login, which is where the app has the PIN it needs to register safely.
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [faceIdOn, setFaceIdOn] = useState(false);
+  useEffect(() => { canUseBiometrics().then(setBioAvailable); }, []);
+  useEffect(() => { if (showModal && myName) setFaceIdOn(hasPasskeyOnDevice(myName)); }, [showModal, myName]);
+
+  const toggleFaceId = () => {
+    if (!myName) return;
+    const label = biometricLabel();
+    if (faceIdOn) {
+      if (!window.confirm(`Turn off ${label} login on this device? You'll use your PIN instead.`)) return;
+      disablePasskeyOnDevice(myName);
+      setFaceIdOn(false);
+      return;
+    }
+    if (!window.confirm(`To turn on ${label}, log out and log back in with your PIN. You'll be asked right after. Log out now?`)) return;
+    try { localStorage.removeItem(`lb_passkey_offer_dismissed_${myName}`); } catch { /* ignore */ }
+    closeModal();
+    logout();
+  };
+
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -678,6 +701,14 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
                   <span style={settingLabelStyle}>Change PIN</span>
                   <span style={{ ...settingValueStyle, fontSize: 11 }}>›</span>
                 </button>
+                {bioAvailable && myName && (
+                  <button onClick={toggleFaceId} style={settingRowStyle}>
+                    <span style={settingLabelStyle}>{biometricLabel()} login</span>
+                    <span style={{ ...settingValueStyle, fontSize: 11, color: faceIdOn ? '#34d399' : undefined }}>
+                      {faceIdOn ? 'On' : 'Off'} ›
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     if (!window.confirm('Log out?')) return;

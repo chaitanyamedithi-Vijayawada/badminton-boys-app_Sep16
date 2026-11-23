@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Mail, ChevronRight, Check, ArrowLeft, Delete } from 'lucide-react';
+import { Mail, ChevronRight, Check, ArrowLeft, Delete, ScanFace } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { makeInitials } from '../lib/constants';
 import PlayerAvatar from './PlayerAvatar';
 import { supabase } from '../lib/supabase';
+import { canUseBiometrics, biometricLabel, hasPasskeyOnDevice, enablePasskey, prepareEnablePasskey, prepareLoginPasskey, passkeyOfferDismissed, dismissPasskeyOffer, type PreparedPasskey } from '../lib/passkeys';
 
 const PAD = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
 
@@ -61,9 +62,16 @@ function PinPad({ pin, onChange }: { pin: string; onChange: (p: string) => void 
 
 export default function NamePicker() {
   const { players, setMyName, setShowNamePicker, showNamePicker, myName, dataReady,
-          loadPlayers, loginWithPin, setupPin, isLoggedIn } = useApp();
+          loadPlayers, loginWithPin, loginWithFaceId, setupPin, isLoggedIn } = useApp();
 
-  const [step, setStep] = useState<'pick' | 'email' | 'pin-entry' | 'pin-setup' | 'pin-confirm'>('pick');
+  const [step, setStep] = useState<'pick' | 'email' | 'pin-entry' | 'pin-setup' | 'pin-confirm' | 'faceid-offer'>('pick');
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [faceIdBusy, setFaceIdBusy] = useState(false);
+  const bioName = biometricLabel();
+
+  const [prepared, setPrepared] = useState<PreparedPasskey | null>(null);
+
+  useEffect(() => { canUseBiometrics().then(setBioAvailable); }, []);
   const [selectedName, setSelectedName] = useState('');
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
@@ -77,8 +85,26 @@ export default function NamePicker() {
 
   // If returning user is already logged in, close picker
   useEffect(() => {
-    if (dataReady && myName && isLoggedIn) setShowNamePicker(false);
-  }, [dataReady, myName, isLoggedIn]);
+    if (dataReady && myName && isLoggedIn && step !== 'faceid-offer') setShowNamePicker(false);
+  }, [dataReady, myName, isLoggedIn, step]);
+
+  // Fetch the Face ID challenge ahead of the tap (see lib/passkeys.ts).
+  useEffect(() => {
+    setPrepared(null);
+    if (!bioAvailable || !selectedName) return;
+    let live = true;
+    if (step === 'pin-entry' && hasPasskeyOnDevice(selectedName)) {
+      prepareLoginPasskey(selectedName).then(p => { if (live) setPrepared(p); });
+    } else if (step === 'faceid-offer' && pin.length === 4) {
+      prepareEnablePasskey(selectedName, pin).then(p => {
+        if (!live) return;
+        setPrepared(p);
+        if (!p) setPinError(`Couldn't set up ${bioName} right now. You can skip this.`);
+      });
+    }
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedName, bioAvailable]);
 
   // If returning user has name but not logged in, go to PIN entry
   useEffect(() => {
@@ -151,6 +177,7 @@ export default function NamePicker() {
     const ok = await loginWithPin(selectedName, pin);
     if (ok) {
       setMyName(selectedName);
+      if (shouldOfferFaceId(selectedName)) { setStep('faceid-offer'); return; }
       setShowNamePicker(false);
     } else {
       setPinError('Incorrect PIN. Please try again.');
@@ -174,9 +201,40 @@ export default function NamePicker() {
       return;
     }
     setMyName(selectedName);
-    setShowNamePicker(false);
     setSaving(false);
+    if (shouldOfferFaceId(selectedName)) { setStep('faceid-offer'); return; }
+    setShowNamePicker(false);
   };
+
+  const shouldOfferFaceId = (name: string) =>
+    bioAvailable && !hasPasskeyOnDevice(name) && !passkeyOfferDismissed(name);
+
+  const handleFaceIdLogin = async () => {
+    if (faceIdBusy || !prepared) return;
+    setFaceIdBusy(true); setPinError('');
+    const res = await loginWithFaceId(prepared);
+    setFaceIdBusy(false);
+    if (res === 'ok') { setMyName(selectedName); setShowNamePicker(false); return; }
+    // A challenge is single-use; fetch a fresh one for the next try.
+    prepareLoginPasskey(selectedName).then(setPrepared);
+    if (res === 'none') setPinError(`${bioName} isn't set up for you anymore. Use your PIN.`);
+    else if (res === 'failed') setPinError(`${bioName} didn't work. Use your PIN.`);
+  };
+
+  const handleEnableFaceId = async () => {
+    if (faceIdBusy || !prepared) return;
+    setFaceIdBusy(true); setPinError('');
+    const res = await enablePasskey(prepared);
+    setFaceIdBusy(false);
+    if (res.ok || res.reason === 'cancelled') {
+      if (!res.ok) dismissPasskeyOffer(selectedName);
+      setShowNamePicker(false);
+      return;
+    }
+    setPinError(`Couldn't turn on ${bioName}. You can try again later from your profile.`);
+  };
+
+  const skipFaceId = () => { dismissPasskeyOffer(selectedName); setShowNamePicker(false); };
 
   const selectedPlayer = players.find(p => p.name === selectedName);
   const emailValid = email.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -222,6 +280,14 @@ export default function NamePicker() {
           <>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f0f5', marginBottom: 6 }}>Set your PIN</div>
             <div style={{ fontSize: 13, color: '#55556a' }}>Choose a 4-digit PIN to secure your account.</div>
+          </>
+        )}
+        {step === 'faceid-offer' && (
+          <>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#f0f0f5', marginBottom: 6 }}>Use {bioName} next time?</div>
+            <div style={{ fontSize: 13, color: '#55556a', maxWidth: 290, margin: '0 auto' }}>
+              Log in with a glance instead of typing your PIN. Your PIN still works as a backup.
+            </div>
           </>
         )}
         {step === 'pin-confirm' && (
@@ -329,6 +395,19 @@ export default function NamePicker() {
                 fontSize: 13, color: '#f87171', textAlign: 'center',
               }}>{pinError}</div>
             )}
+            {bioAvailable && hasPasskeyOnDevice(selectedName) && (
+              <>
+                <button onClick={handleFaceIdLogin} disabled={faceIdBusy || !prepared} style={{
+                  width: '100%', maxWidth: 260, padding: 14, background: '#7c5cff',
+                  border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  opacity: faceIdBusy || !prepared ? 0.6 : 1,
+                }}>
+                  <ScanFace size={18} /> {faceIdBusy ? 'Checking…' : `Log in with ${bioName}`}
+                </button>
+                <div style={{ fontSize: 11, color: '#55556a' }}>or enter your PIN</div>
+              </>
+            )}
             <PinPad pin={pin} onChange={p => { setPin(p); setPinError(''); }} />
             <button onClick={() => { setStep('pick'); setSelectedName(''); setPin(''); setPinError(''); }}
               style={{
@@ -379,6 +458,32 @@ export default function NamePicker() {
                 color: '#55556a', fontSize: 13, cursor: 'pointer',
               }}>
               ← Change PIN
+            </button>
+          </div>
+        )}
+
+        {/* STEP: Offer Face ID after a PIN login */}
+        {step === 'faceid-offer' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <ScanFace size={56} color="#7c5cff" style={{ margin: '8px 0 4px' }} />
+            {pinError && (
+              <div style={{
+                width: '100%', padding: '10px 14px', background: '#1c0a0a',
+                border: '1px solid #7f1d1d', borderRadius: 10,
+                fontSize: 13, color: '#f87171', textAlign: 'center',
+              }}>{pinError}</div>
+            )}
+            <button onClick={handleEnableFaceId} disabled={faceIdBusy || !prepared} style={{
+              width: '100%', maxWidth: 260, padding: 14, background: '#7c5cff',
+              border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700,
+              cursor: 'pointer', opacity: faceIdBusy || !prepared ? 0.6 : 1,
+            }}>
+              {faceIdBusy ? 'Setting up…' : `Turn on ${bioName}`}
+            </button>
+            <button onClick={skipFaceId} style={{
+              background: 'transparent', border: 'none', color: '#55556a', fontSize: 13, cursor: 'pointer',
+            }}>
+              Not now
             </button>
           </div>
         )}

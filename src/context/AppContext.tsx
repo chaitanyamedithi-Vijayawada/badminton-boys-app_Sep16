@@ -1,5 +1,6 @@
 // @refresh reset
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { loginWithPasskey, type PreparedPasskey } from '../lib/passkeys';
 import { supabase } from '../lib/supabase';
 import { COLORS, makeInitials, getWeekKey, getUpcomingSessionWeekKey, getCompletedWeekKey, parseCourtSplit } from '../lib/constants';
 import { getPacificNow, isExtraSessionEnded } from '../lib/cutoff';
@@ -39,6 +40,7 @@ interface AppContextValue {
   // Player PIN login
   isLoggedIn: boolean;
   loginWithPin: (name: string, pin: string) => Promise<boolean>;
+  loginWithFaceId: (prep: PreparedPasskey) => Promise<'ok' | 'cancelled' | 'failed' | 'none'>;
   setupPin: (name: string, pin: string, currentPin?: string) => Promise<void>;
   resetPlayerPin: (playerId: string) => Promise<void>;
   logout: () => void;
@@ -244,6 +246,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     return false;
   }, [showToast]);
+
+  // Face ID / fingerprint login (passkey verified by the passkey-auth function).
+  const loginWithFaceId = useCallback(async (prep: PreparedPasskey) => {
+    const res = await loginWithPasskey(prep);
+    if (res.ok) {
+      setIsLoggedIn(true);
+      localStorage.setItem('lb_logged_in', 'true');
+      return 'ok' as const;
+    }
+    return res.reason;
+  }, []);
 
   const setupPin = useCallback(async (name: string, pin: string, currentPin?: string): Promise<void> => {
     const { data, error } = await supabase.functions.invoke('pin-auth', {
@@ -1377,7 +1390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     showNamePicker, setShowNamePicker,
     dataReady, fontSize, toast, showToast, refreshTab,
     pinVerified, verifyAdminPin, submitPin,
-    isLoggedIn, loginWithPin, setupPin, resetPlayerPin, logout,
+    isLoggedIn, loginWithPin, loginWithFaceId, setupPin, resetPlayerPin, logout,
     players, setPlayers, loadPlayers, loadWallets,
     handleSettleAndArchive, handleUnarchivePlayer,
     settings, loadSettings,
