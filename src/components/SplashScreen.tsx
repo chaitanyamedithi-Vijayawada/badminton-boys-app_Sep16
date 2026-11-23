@@ -91,12 +91,6 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         }}>
           CourtCrew
         </div>
-        <div style={{
-          fontSize: 11, color: '#1e4a5f', letterSpacing: '0.14em',
-          textTransform: 'uppercase', marginTop: 6,
-        }}>
-          Badminton Boys · Langley BC
-        </div>
       </div>
 
       {/* Progress bar */}
