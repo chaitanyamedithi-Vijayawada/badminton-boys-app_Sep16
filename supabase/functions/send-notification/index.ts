@@ -9,6 +9,25 @@ const corsHeaders = {
 const OS_APP_ID = "d4b596d7-2437-46e4-b883-cf06b43bc590";
 const OS_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY") ?? "";
 
+// Where a tapped notification opens. The custom domain works regardless of
+// which host (Netlify/Vercel) serves the app.
+const APP_URL = "https://badmintonboys.net";
+
+// Never send people to an old *.netlify.app / *.vercel.app address — those can
+// be renamed or deleted (that caused the "Site not found" taps). Keep the path.
+function resolveUrl(raw: unknown): string {
+  if (typeof raw !== "string" || !raw.trim()) return APP_URL;
+  try {
+    const u = new URL(raw, APP_URL);
+    if (u.hostname.endsWith("netlify.app") || u.hostname.endsWith("vercel.app")) {
+      return APP_URL + u.pathname + u.search + u.hash;
+    }
+    return u.toString();
+  } catch {
+    return APP_URL;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -28,7 +47,7 @@ Deno.serve(async (req: Request) => {
       app_id: OS_APP_ID,
       headings: body.headings || { en: "Badminton Boys" },
       contents: body.contents || { en: body.message || "" },
-      url: body.url || "https://langleybadmintonboys.netlify.app",
+      url: resolveUrl(body.url),
     };
 
     if (body.filters) {

@@ -23,7 +23,7 @@ async function sendPush(title: string, message: string, adminOnly = false) {
     app_id: OS_APP_ID,
     headings: { en: title },
     contents: { en: message },
-    url: 'https://langleybadmintonboys.netlify.app',
+    url: 'https://badmintonboys.net',
   };
   if (adminOnly) {
     body.filters = [{ field: 'tag', key: 'is_admin', relation: '=', value: 'true' }];
@@ -40,7 +40,7 @@ async function sendPushToPlayer(playerName: string, title: string, message: stri
     app_id: OS_APP_ID,
     headings: { en: title },
     contents: { en: message },
-    url: 'https://langleybadmintonboys.netlify.app',
+    url: 'https://badmintonboys.net',
     filters: [{ field: 'tag', key: 'player_name', relation: '=', value: playerName }],
   });
 }

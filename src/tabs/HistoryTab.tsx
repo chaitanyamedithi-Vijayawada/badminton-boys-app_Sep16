@@ -782,13 +782,34 @@ export default function HistoryTab() {
 
       // Look up the player's actual charge for this session — don't use
       // the potentially-stale per_person from extra_sessions.
-      const { data: existingTxn } = csRow ? await supabase
-        .from('transactions')
-        .select('id, amount')
-        .eq('session_id', String(csRow.id))
-        .eq('player_id', targetPlayer.id)
-        .eq('type', 'match_charge')
-        .maybeSingle() : { data: null };
+      // Extra-session charges are written WITHOUT a session_id (see
+      // finalizeExtraSession), so a session_id lookup alone never finds them
+      // and the removed player was never refunded. Try session_id first, then
+      // fall back to the charge note, which carries the title + date.
+      let existingTxn: { id: string; amount: number } | null = null;
+      if (csRow) {
+        const { data } = await supabase
+          .from('transactions')
+          .select('id, amount')
+          .eq('session_id', String(csRow.id))
+          .eq('player_id', targetPlayer.id)
+          .eq('type', 'match_charge')
+          .limit(1)
+          .maybeSingle();
+        existingTxn = data;
+      }
+      if (!existingTxn) {
+        const { data } = await supabase
+          .from('transactions')
+          .select('id, amount')
+          .eq('player_id', targetPlayer.id)
+          .eq('type', 'match_charge')
+          .eq('note', `Extra Session — ${session.title} · ${session.sessionDate}`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingTxn = data;
+      }
 
       const actualCharge = existingTxn ? Math.abs(Number(existingTxn.amount)) : 0;
 

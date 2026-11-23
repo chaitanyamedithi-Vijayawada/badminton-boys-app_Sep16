@@ -265,7 +265,12 @@ function PendingPayments() {
     if (!targetPlayer) { showToast('Error: Resolved player profile missing'); return; }
     const oldBalance = targetPlayer.balance;
     const newBalance = oldBalance + amount;
-    await supabase.from('payments').update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() }).eq('id', id);
+    // Only flip a still-PENDING row. A double-tap (or a second admin) gets no
+    // row back and stops here, so the player can't be credited twice.
+    const { data: claimed } = await supabase.from('payments')
+      .update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() })
+      .eq('id', id).eq('status', 'pending').select('id');
+    if (!claimed?.length) { await loadPendingPayments(); showToast(`Already handled for ${playerName}`); return; }
     await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Payment Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
     await loadPendingPayments();
     await loadWallets();
@@ -289,7 +294,7 @@ function PendingPayments() {
   };
 
   const handleReject = async (id: number, playerName: string) => {
-    await supabase.from('payments').update({ status: 'rejected', confirmed_by: myName }).eq('id', id);
+    await supabase.from('payments').update({ status: 'rejected', confirmed_by: myName }).eq('id', id).eq('status', 'pending');
     await loadPendingPayments();
     showToast(`Payment rejected for ${playerName}`);
   };
@@ -346,7 +351,11 @@ function TransferHistory({ transfers, players }: { transfers: PlayerTransfer[]; 
           const date = new Date(Number(yr), Number(mo) - 1, 1);
           const label = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
           const isOpen = openMonth === key;
-          const monthTotal = items.reduce((s, t) => s + Number(t.amount), 0);
+          // Only CONFIRMED transfers actually added money — rejected ones must
+          // not count toward the month's total.
+          const monthTotal = items
+            .filter(t => t.status === 'confirmed')
+            .reduce((s, t) => s + Number(t.amount), 0);
 
           return (
             <div key={key} className="rounded-lg border border-white/[0.06] overflow-hidden">
@@ -371,7 +380,10 @@ function TransferHistory({ transfers, players }: { transfers: PlayerTransfer[]; 
                       <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-white/[0.04]" style={{ fontSize: 11 }}>
                         <PlayerAvatar player={tplayer} size={20} />
                         <span className="text-slate-300 flex-1">{t.player_name}</span>
-                        <span className="text-slate-400">${Number(t.amount).toFixed(2)}</span>
+                        <span
+                          className={t.status === 'confirmed' ? 'text-slate-400' : 'text-slate-600 line-through'}
+                          title={t.status === 'confirmed' ? undefined : 'Not added to balance'}
+                        >${Number(t.amount).toFixed(2)}</span>
                         <span
                           className="font-medium px-1.5 py-0.5 rounded"
                           style={{
@@ -410,7 +422,12 @@ function PendingTransfers() {
     if (!targetPlayer) { showToast('Error: Target profile identity resolution missed'); return; }
     const oldBalance = targetPlayer.balance;
     const newBalance = oldBalance + amount;
-    await supabase.from('player_transfers').update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() }).eq('id', id);
+    // Only flip a still-PENDING row. A double-tap (or a second admin) gets no
+    // row back and stops here, so the player can't be credited twice.
+    const { data: claimed } = await supabase.from('player_transfers')
+      .update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() })
+      .eq('id', id).eq('status', 'pending').select('id');
+    if (!claimed?.length) { await loadPlayerTransfers(); showToast(`Already handled for ${playerName}`); return; }
     await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Transfer Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
     await loadPlayerTransfers();
     await loadWallets();
@@ -434,7 +451,7 @@ function PendingTransfers() {
   };
 
   const handleRejectTransfer = async (id: number, playerName: string) => {
-    await supabase.from('player_transfers').update({ status: 'rejected', confirmed_by: myName }).eq('id', id);
+    await supabase.from('player_transfers').update({ status: 'rejected', confirmed_by: myName }).eq('id', id).eq('status', 'pending');
     await loadPlayerTransfers();
     showToast(`Transfer rejected for ${playerName}`);
   };
