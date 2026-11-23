@@ -68,7 +68,7 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
         {/* Logo */}
         <img
           src="/logo-mark.png"
-          alt="Badminton Boys"
+          alt="CourtCrew"
           style={{
             width: 200, height: 200,
             objectFit: 'contain',
@@ -89,13 +89,13 @@ export default function SplashScreen({ onDone }: { onDone: () => void }) {
           background: 'linear-gradient(90deg, var(--accent), #ff6f91, var(--accent))',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
         }}>
-          Badminton Boys
+          CourtCrew
         </div>
         <div style={{
           fontSize: 11, color: '#1e4a5f', letterSpacing: '0.14em',
           textTransform: 'uppercase', marginTop: 6,
         }}>
-          Surrey · Langley BC
+          Badminton Boys · Langley BC
         </div>
       </div>
 

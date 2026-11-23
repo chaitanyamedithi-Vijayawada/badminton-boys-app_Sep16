@@ -22,7 +22,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 p-6 text-center">
           <p className="text-cyan-400 text-sm font-semibold mb-2">⚡ App Update Detected</p>
-          <p className="text-slate-400 text-xs mb-4">A new version of Badminton Boys was just published.</p>
+          <p className="text-slate-400 text-xs mb-4">A new version of CourtCrew was just published.</p>
           <button onClick={() => window.location.reload()} className="px-4 py-2 bg-cyan-500 text-black font-semibold rounded-xl text-xs hover:bg-cyan-400">
             Refresh Application
           </button>

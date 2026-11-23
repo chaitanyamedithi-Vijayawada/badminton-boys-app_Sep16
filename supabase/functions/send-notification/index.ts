@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
 
     const payload: Record<string, unknown> = {
       app_id: OS_APP_ID,
-      headings: body.headings || { en: "Badminton Boys" },
+      headings: body.headings || { en: "CourtCrew" },
       contents: body.contents || { en: body.message || "" },
       url: resolveUrl(body.url),
     };

@@ -26,7 +26,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const RP_NAME = "Badminton Boys";
+const RP_NAME = "CourtCrew";
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 const supabase = createClient(

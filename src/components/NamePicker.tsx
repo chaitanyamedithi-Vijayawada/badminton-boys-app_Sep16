@@ -256,7 +256,7 @@ export default function NamePicker() {
 
         {step === 'pick' && (
           <>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f0f5', marginBottom: 8 }}>Welcome to Badminton Boys!</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#f0f0f5', marginBottom: 8 }}>Welcome to CourtCrew!</div>
             <div style={{ fontSize: 13, color: '#55556a' }}>Who are you? Pick your name to get started.</div>
           </>
         )}

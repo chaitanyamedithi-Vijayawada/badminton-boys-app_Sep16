@@ -269,14 +269,14 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
         }}
       >
         <div className="app-name-animated flex items-center gap-2">
-          <img src="/logo-mark.png" alt="Badminton Boys" className="w-7 h-7 rounded-md flex-shrink-0 object-contain" />
+          <img src="/logo-mark.png" alt="CourtCrew" className="w-7 h-7 rounded-md flex-shrink-0 object-contain" />
           <span
             className="text-xl font-black tracking-[0.15em] uppercase bg-clip-text text-transparent"
             style={{
               backgroundImage: 'linear-gradient(90deg, var(--accent-from), var(--accent), var(--accent-2))',
               filter: 'drop-shadow(0 2px 10px color-mix(in srgb, var(--accent) 30%, transparent))',
             }}>
-            Badminton Boys
+            CourtCrew
           </span>
         </div>
         <button
@@ -548,7 +548,7 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
                   )}
                   {pushStatus === 'unavailable' && (
                     <div style={{ fontSize: 11, color: '#64748b', padding: '0 2px 8px' }}>
-                      Add Badminton Boys to your Home Screen to get notifications.
+                      Add CourtCrew to your Home Screen to get notifications.
                     </div>
                   )}
                 </div>

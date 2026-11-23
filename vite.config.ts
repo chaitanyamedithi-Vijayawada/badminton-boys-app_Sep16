@@ -79,12 +79,12 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Badminton Boys',
-        short_name: 'Badminton Boys',
-        description: 'Badminton Boys session management app',
+        name: 'CourtCrew',
+        short_name: 'CourtCrew',
+        description: 'Court sessions, RSVPs and shared costs for your sports group',
         start_url: '/',
         display: 'standalone',
-        background_color: '#0f172a',
+        background_color: '#151f21',
         theme_color: '#22d3ee',
         icons: [
           {
