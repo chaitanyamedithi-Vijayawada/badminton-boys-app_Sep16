@@ -1402,20 +1402,21 @@ export default function HomeTab() {
 
       {/* Row 2: Extra session tabs (only shown when extras exist) */}
       {activeExtraSessions.length > 0 && (
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           {activeExtraSessions.map(s => (
             <button
               key={s.id}
               onClick={() => setActiveExtraSession(s.id)}
-              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold border transition-all whitespace-nowrap"
+              className="min-w-0 px-3 py-2 rounded-xl border transition-all text-center leading-tight"
               style={activeExtraSession === s.id
                 ? { background: '#1fb5c4', borderColor: '#1fb5c4', color: '#04191c', boxShadow: '0 0 14px rgba(31,181,196,0.5)' }
                 : { background: 'rgba(31,181,196,0.12)', borderColor: 'rgba(45,212,226,0.55)', color: '#67e8f9' }}
             >
-              ★ {s.title}
-              <span className="ml-2 text-xs font-semibold opacity-80">
+              {/* Two lines so it always fits: name, then date. */}
+              <div className="text-sm font-bold truncate">★ {s.title}</div>
+              <div className="text-[11px] font-semibold opacity-80 mt-0.5">
                 {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              </span>
+              </div>
             </button>
           ))}
         </div>
