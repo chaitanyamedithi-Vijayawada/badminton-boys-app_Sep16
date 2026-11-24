@@ -262,7 +262,8 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
       <div
         className="rounded-2xl px-4 py-3 border flex items-center justify-between mb-2"
         style={{
-          background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), rgba(255,255,255,0.03) 45%, color-mix(in srgb, var(--accent-2) 8%, transparent))',
+          // Dark, logo-coloured card so the CourtCrew logo stands out on every theme.
+          background: 'linear-gradient(135deg, rgba(14, 22, 24, 0.96), rgba(8, 13, 15, 0.96))',
           borderColor: 'rgba(251, 146, 60, 0.4)',
           boxShadow: '0 0 10px rgba(251, 146, 60, 0.5), 0 0 24px rgba(251, 146, 60, 0.2)',
           backdropFilter: 'blur(12px)',
