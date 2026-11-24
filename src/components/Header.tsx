@@ -270,7 +270,7 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
         }}
       >
         <div className="app-name-animated flex items-center gap-2">
-          <img src="/logo-mark.png" alt="CourtCrew" className="w-7 h-7 rounded-md flex-shrink-0 object-contain" />
+          <img src="/brand/mark.png" alt="CourtCrew" className="h-9 w-auto flex-shrink-0 select-none" draggable={false} />
           {/* Lettering taken straight from the CourtCrew logo so it always matches it. */}
           <img src="/brand/wordmark.png" alt="Court Crew"
             className="h-6 w-auto flex-shrink-0 select-none" draggable={false} />
