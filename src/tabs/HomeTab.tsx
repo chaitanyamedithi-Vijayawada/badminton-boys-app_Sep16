@@ -1413,6 +1413,9 @@ export default function HomeTab() {
                 : { background: 'rgba(31,181,196,0.12)', borderColor: 'rgba(45,212,226,0.55)', color: '#67e8f9' }}
             >
               ★ {s.title}
+              <span className="ml-2 text-xs font-semibold opacity-80">
+                {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
             </button>
           ))}
         </div>
