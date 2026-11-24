@@ -1407,13 +1407,12 @@ export default function HomeTab() {
             <button
               key={s.id}
               onClick={() => setActiveExtraSession(s.id)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap ${
-                activeExtraSession === s.id
-                  ? 'btn-gradient border-transparent text-white shadow-lg shadow-[#7c5cff]/20'
-                  : 'bg-white/[0.05] border-violet-400/20 text-slate-400 hover:border-violet-400/40'
-              }`}
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold border transition-all whitespace-nowrap"
+              style={activeExtraSession === s.id
+                ? { background: '#1fb5c4', borderColor: '#1fb5c4', color: '#04191c', boxShadow: '0 0 14px rgba(31,181,196,0.5)' }
+                : { background: 'rgba(31,181,196,0.12)', borderColor: 'rgba(45,212,226,0.55)', color: '#67e8f9' }}
             >
-              {s.title}
+              ★ {s.title}
             </button>
           ))}
         </div>

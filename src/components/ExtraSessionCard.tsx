@@ -182,18 +182,25 @@ export default function ExtraSessionCard({ session }: { session: ExtraSession })
   ];
 
   return (
-    <div className={`neon-card mb-3 ${session.cancelled ? 'card-rose' : 'card-amber'}`}>
+    <div
+      className={`neon-card mb-3 ${session.cancelled ? 'card-rose' : ''}`}
+      style={session.cancelled ? undefined : {
+        // Teal from the CourtCrew logo so extra sessions stand out from regular ones.
+        background: 'linear-gradient(160deg, rgba(31,181,196,0.22) 0%, rgba(10,40,46,0.92) 55%, rgba(8,24,28,0.95) 100%)',
+        borderColor: 'rgba(45,212,226,0.65)',
+        boxShadow: '0 0 14px rgba(31,181,196,0.45), 0 0 32px rgba(31,181,196,0.18)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="text-base font-semibold text-slate-100">{session.title}</div>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400 border border-amber-700/30">
-              Extra
-            </span>
-          </div>
-          <div className="text-xs text-slate-400">{sessionDate}</div>
-          <div className="text-xs text-slate-400">{session.start_time} – {session.end_time}</div>
+          <span className="inline-block text-[11px] font-extrabold tracking-[0.14em] uppercase px-2.5 py-1 rounded-md mb-2"
+            style={{ background: '#1fb5c4', color: '#04191c' }}>
+            ★ Extra session
+          </span>
+          <div className="text-xl font-bold text-white leading-tight">{session.title}</div>
+          <div className="text-sm font-medium text-cyan-100 mt-1">{sessionDate}</div>
+          <div className="text-base font-bold text-cyan-300">{session.start_time} – {session.end_time}</div>
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
           session.cancelled

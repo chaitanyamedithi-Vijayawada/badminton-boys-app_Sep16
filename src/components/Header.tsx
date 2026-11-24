@@ -258,15 +258,19 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
 
   return (
     <>
-    <div className="px-4 pt-10 pb-3 sticky top-0 z-50 backdrop-blur-xl" style={{ background: 'transparent' }}>
+    <div className="px-4 pt-10 pb-3 sticky top-0 z-50"
+      style={{
+        // Solid dark bar behind the status bar and header so content scrolling
+        // underneath doesn't show through as a hazy band.
+        background: 'linear-gradient(to bottom, #070c0e 0%, #070c0e 85%, rgba(7,12,14,0))',
+      }}>
       <div
         className="rounded-2xl px-4 py-3 border flex items-center justify-between mb-2"
         style={{
           // Dark, logo-coloured card so the CourtCrew logo stands out on every theme.
           background: 'linear-gradient(135deg, rgba(14, 22, 24, 0.96), rgba(8, 13, 15, 0.96))',
           borderColor: 'rgba(251, 146, 60, 0.4)',
-          boxShadow: '0 0 10px rgba(251, 146, 60, 0.5), 0 0 24px rgba(251, 146, 60, 0.2)',
-          backdropFilter: 'blur(12px)',
+          boxShadow: '0 2px 12px rgba(0, 0, 0, 0.5)',
         }}
       >
         <div className="app-name-animated flex items-center gap-2">
