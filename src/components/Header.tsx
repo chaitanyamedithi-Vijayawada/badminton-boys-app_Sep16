@@ -276,7 +276,7 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
               backgroundImage: 'linear-gradient(90deg, var(--accent-from), var(--accent), var(--accent-2))',
               filter: 'drop-shadow(0 2px 10px color-mix(in srgb, var(--accent) 30%, transparent))',
             }}>
-            CourtCrew
+            Court Crew
           </span>
         </div>
         <button
