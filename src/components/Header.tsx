@@ -270,14 +270,9 @@ export default function Header({ showAdmins = false }: { showAdmins?: boolean })
       >
         <div className="app-name-animated flex items-center gap-2">
           <img src="/logo-mark.png" alt="CourtCrew" className="w-7 h-7 rounded-md flex-shrink-0 object-contain" />
-          <span
-            className="text-xl font-black tracking-[0.15em] uppercase bg-clip-text text-transparent"
-            style={{
-              backgroundImage: 'linear-gradient(90deg, var(--accent-from), var(--accent), var(--accent-2))',
-              filter: 'drop-shadow(0 2px 10px color-mix(in srgb, var(--accent) 30%, transparent))',
-            }}>
-            Court Crew
-          </span>
+          {/* Lettering taken straight from the CourtCrew logo so it always matches it. */}
+          <img src="/brand/wordmark.png" alt="Court Crew"
+            className="h-6 w-auto flex-shrink-0 select-none" draggable={false} />
         </div>
         <button
           onClick={() => setShowModal(true)}
