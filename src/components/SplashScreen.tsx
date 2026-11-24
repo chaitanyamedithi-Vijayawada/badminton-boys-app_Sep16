@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 // CourtCrew animated splash: plays the logo animation once, then fades into the
 // app. Players with "Reduce Motion" on see the still logo instead. If the video
 // can't play (old browser, data saver), a timer still lets the app open.
-const BG = '#171e1f';           // matches the animation's own background
+const BG = '#161e1f';           // matches the animation's own background
 const STILL_MS = 1200;          // how long the still logo shows
 const MAX_MS = 4500;            // hard cap so the splash can never get stuck
 
