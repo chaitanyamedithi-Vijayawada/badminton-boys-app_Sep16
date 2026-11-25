@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Trophy, Plus, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTournament, type MatchRow } from '../hooks/useTournament';
+import TournamentWinners from '../components/TournamentWinners';
 import { computeStandings, matchesRemaining, type TournamentTeam, type MatchResult, type ScheduledMatch } from '../lib/tournament';
 
 // Distinct colors cycling through teams and rounds
@@ -30,7 +31,33 @@ const STAGE_COLORS: Record<string, { bg: string; border: string; text: string }>
   third_place: { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.30)', text: '#94a3b8' },
 };
 
+// Cup tab: a Live / Winners switch on top of the running tournament.
 export default function TournamentTab() {
+  const [view, setView] = useState<'live' | 'winners'>('live');
+  const tabBtn = (on: boolean) => ({
+    background: on ? '#facc15' : 'rgba(255,255,255,0.05)',
+    color: on ? '#1a1300' : '#94a3b8',
+    borderColor: on ? '#facc15' : 'rgba(255,255,255,0.12)',
+  });
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <button onClick={() => setView('live')} className="py-2.5 rounded-xl text-sm font-bold border" style={tabBtn(view === 'live')}>
+          Tournament
+        </button>
+        <button onClick={() => setView('winners')} className="py-2.5 rounded-xl text-sm font-bold border flex items-center justify-center gap-1.5" style={tabBtn(view === 'winners')}>
+          <Trophy size={15} /> Winners
+        </button>
+      </div>
+      {view === 'live'
+        ? <LiveTournamentView />
+        : <TournamentWinners />}
+    </div>
+  );
+}
+
+function LiveTournamentView() {
   const { currentUser } = useApp();
   const isAdmin = currentUser?.role === 'admin';
   const { tournament, teams, matches, loading, createTournament, enterScore, startKnockout, resolveFinal, endTournament, renameTeam, resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames } = useTournament();
