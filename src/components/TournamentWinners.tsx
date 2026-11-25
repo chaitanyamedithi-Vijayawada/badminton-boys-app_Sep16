@@ -11,6 +11,7 @@ export interface WinnerRow {
   runners_up: string[];
   champions_photo: string | null;
   runners_up_photo: string | null;
+  group_photo: string | null;
   final_score: string | null;
   created_at: string;
 }
@@ -148,6 +149,16 @@ export default function TournamentWinners() {
                 )}
               </div>
 
+              {r.group_photo && (
+                <div className="px-4 pb-4">
+                  <div className="text-xs font-extrabold uppercase tracking-wider mb-2 text-slate-300">👥 All players</div>
+                  <button onClick={() => setViewPhoto(r.group_photo!)} className="block w-full">
+                    <img src={r.group_photo} alt="All players" loading="lazy"
+                      className="w-full rounded-xl object-cover border border-white/10" style={{ maxHeight: 280 }} />
+                  </button>
+                </div>
+              )}
+
               <Side label="🥇 Winners" color={GOLD} names={r.champions} photo={r.champions_photo} big onPhoto={setViewPhoto} />
               {(r.runners_up.length > 0 || r.runners_up_photo) && (
                 <Side label="🥈 Runners-up" color={SILVER} names={r.runners_up} photo={r.runners_up_photo} onPhoto={setViewPhoto} />
@@ -273,6 +284,7 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
   const [runnersUp, setRunnersUp] = useState<string[]>([]);
   const [champPhoto, setChampPhoto] = useState<File | null>(null);
   const [runnerPhoto, setRunnerPhoto] = useState<File | null>(null);
+  const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   const canSave = !!name.trim() && !!month && champions.length > 0 && !saving;
@@ -281,9 +293,10 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
     if (!canSave) return;
     setSaving(true);
     try {
-      const [cp, rp] = await Promise.all([
+      const [cp, rp, gp] = await Promise.all([
         champPhoto ? uploadWinnerPhoto(champPhoto) : Promise.resolve(null),
         runnerPhoto ? uploadWinnerPhoto(runnerPhoto) : Promise.resolve(null),
+        groupPhoto ? uploadWinnerPhoto(groupPhoto) : Promise.resolve(null),
       ]);
       const { error } = await supabase.from('tournament_winners').insert({
         tournament_name: name.trim(),
@@ -292,6 +305,7 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
         runners_up: runnersUp,
         champions_photo: cp,
         runners_up_photo: rp,
+        group_photo: gp,
         final_score: score.trim() || null,
       });
       if (error) throw error;
@@ -326,6 +340,9 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
             className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-sm" />
         </div>
       </div>
+
+      <div className="text-xs font-bold mb-1.5 text-slate-300">👥 Photo of all players</div>
+      <PhotoPicker label="Add group photo" color="#94a3b8" file={groupPhoto} onChange={setGroupPhoto} />
 
       <NamesInput label="🥇 Winners" color={GOLD} names={champions} setNames={setChampions} clubPlayers={clubPlayers} />
       <PhotoPicker label="Add winners photo" color={GOLD} file={champPhoto} onChange={setChampPhoto} />

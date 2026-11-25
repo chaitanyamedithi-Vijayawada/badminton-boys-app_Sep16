@@ -31,9 +31,15 @@ const STAGE_COLORS: Record<string, { bg: string; border: string; text: string }>
   third_place: { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.30)', text: '#94a3b8' },
 };
 
-// Cup tab: a Live / Winners switch on top of the running tournament.
+// Cup tab: shows the Tournament Winners board only. The live tournament screen
+// (LiveTournamentView) is kept but hidden; set SHOW_LIVE_TOURNAMENT to true to
+// bring back the Tournament / Winners switch.
+const SHOW_LIVE_TOURNAMENT = false;
+
 export default function TournamentTab() {
-  const [view, setView] = useState<'live' | 'winners'>('live');
+  const [view, setView] = useState<'live' | 'winners'>('winners');
+  if (!SHOW_LIVE_TOURNAMENT) return <TournamentWinners />;
+
   const tabBtn = (on: boolean) => ({
     background: on ? '#facc15' : 'rgba(255,255,255,0.05)',
     color: on ? '#1a1300' : '#94a3b8',
@@ -50,9 +56,7 @@ export default function TournamentTab() {
           <Trophy size={15} /> Winners
         </button>
       </div>
-      {view === 'live'
-        ? <LiveTournamentView />
-        : <TournamentWinners />}
+      {view === 'live' ? <LiveTournamentView /> : <TournamentWinners />}
     </div>
   );
 }
