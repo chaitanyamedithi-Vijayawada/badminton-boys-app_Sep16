@@ -83,6 +83,15 @@ export async function notifyRsvp(playerName: string, day: string, status: 'going
   }
 }
 
+// Tell everyone a tournament's winners (and photos) are up on the Cup tab.
+export async function notifyTournamentWinners(tournamentName: string, winners: string[], hasPhotos: boolean) {
+  const names = winners.join(' & ');
+  await sendPush(
+    `🏆 ${tournamentName} winners`,
+    `Congrats ${names}!${hasPhotos ? ' Photos are up' : ' See the results'} in the Cup tab.`,
+  );
+}
+
 export async function notifyBroadcast(message: string, sentBy: string) {
   await sendPush(`📢 ${sentBy}`, message);
 }

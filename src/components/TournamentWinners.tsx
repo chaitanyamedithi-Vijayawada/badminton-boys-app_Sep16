@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trophy, Plus, Trash2, X, Camera } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../context/AppContext';
+import { notifyTournamentWinners } from '../lib/notifications';
 
 export interface WinnerRow {
   id: string;
@@ -309,6 +310,8 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
         final_score: score.trim() || null,
       });
       if (error) throw error;
+      // Let the whole club know (fire-and-forget; a push failure never blocks saving).
+      notifyTournamentWinners(name.trim(), champions, !!(cp || rp || gp));
       onSaved();
     } catch (e) {
       onError(e instanceof Error && e.message.startsWith('Photo') ? e.message : "Couldn't save. Try again.");
