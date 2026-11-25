@@ -18,3 +18,4 @@ create policy "anon can insert tournament_winners" on public.tournament_winners 
 create policy "anon can update tournament_winners" on public.tournament_winners for update to anon using (id is not null);
 create policy "anon can delete tournament_winners" on public.tournament_winners for delete to anon using (id is not null);
 grant select, insert, update, delete on public.tournament_winners to anon;
+alter table public.tournament_winners add column if not exists group_photo text;
