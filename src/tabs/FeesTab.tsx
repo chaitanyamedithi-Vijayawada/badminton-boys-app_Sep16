@@ -77,13 +77,6 @@ const LABELS: Record<string, string> = {
   adjustment:   'Charge Adjustment',
 };
 
-const TX_COLOR: Record<string, string> = {
-  top_up:       'text-violet-400',
-  match_charge: 'text-red-400',
-  misc_charge:  'text-orange-400',
-  adjustment:   'text-yellow-400',
-};
-
 const balColor  = (n: number): string => (n >= 0 ? 'text-violet-400' : 'text-red-400');
 const fmtAmt    = (n: number): string => (n >= 0 ? `$${Number(n).toFixed(2)}` : `-$${Math.abs(Number(n)).toFixed(2)}`);
 const fmtSigned = (n: number): string => (n >= 0 ? `+$${Number(n).toFixed(2)}` : `-$${Math.abs(Number(n)).toFixed(2)}`);

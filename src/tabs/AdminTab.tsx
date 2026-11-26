@@ -271,7 +271,15 @@ function PendingPayments() {
       .update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() })
       .eq('id', id).eq('status', 'pending').select('id');
     if (!claimed?.length) { await loadPendingPayments(); showToast(`Already handled for ${playerName}`); return; }
-    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Payment Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
+    const { error: topUpErr } = await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Payment Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
+    if (topUpErr) {
+      // The credit didn't land: put the row back to pending so it can be
+      // confirmed again, instead of leaving it 'confirmed' with no money.
+      await supabase.from('payments').update({ status: 'pending', confirmed_by: null, confirmed_at: null }).eq('id', id);
+      await loadPendingPayments();
+      showToast(`Could not credit ${playerName}: ${topUpErr.message}. Still pending, try again.`);
+      return;
+    }
     await loadPendingPayments();
     await loadWallets();
     if (targetPlayer.email) {
@@ -428,7 +436,15 @@ function PendingTransfers() {
       .update({ status: 'confirmed', confirmed_by: myName, confirmed_at: new Date().toISOString() })
       .eq('id', id).eq('status', 'pending').select('id');
     if (!claimed?.length) { await loadPlayerTransfers(); showToast(`Already handled for ${playerName}`); return; }
-    await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Transfer Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
+    const { error: topUpErr } = await supabase.from('transactions').insert({ player_id: targetPlayer.id, type: 'top_up', amount: amount, note: `Transfer Deposit Confirmed by Admin · balance $${oldBalance.toFixed(2)} → $${newBalance.toFixed(2)}` });
+    if (topUpErr) {
+      // The credit didn't land: put the row back to pending so it can be
+      // confirmed again, instead of leaving it 'confirmed' with no money.
+      await supabase.from('player_transfers').update({ status: 'pending', confirmed_by: null, confirmed_at: null }).eq('id', id);
+      await loadPlayerTransfers();
+      showToast(`Could not credit ${playerName}: ${topUpErr.message}. Still pending, try again.`);
+      return;
+    }
     await loadPlayerTransfers();
     await loadWallets();
     if (targetPlayer.email) {

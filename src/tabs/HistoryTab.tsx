@@ -6,6 +6,15 @@ import { supabase } from '../lib/supabase';
 import type { Day, GuestLevel, GuestEntry } from '../types';
 import LogPastSessionModal from '../components/history/LogPastSessionModal';
 
+
+// Supabase returns errors instead of throwing; this turns them into throws
+// so the surrounding try/catch shows the admin a toast instead of failing
+// silently.
+function must<T extends { error: { message: string } | null }>(res: T): T {
+  if (res.error) throw new Error(res.error.message);
+  return res;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const LEVEL_LABELS: Record<GuestLevel, string> = { E: 'Experienced', I: 'Intermediate', B: 'Beginner' };
@@ -545,7 +554,7 @@ export default function HistoryTab() {
     if (names.length === 0) return;
     const { data: playerRows } = await supabase.from('players').select('id, name').in('name', names);
     if (!playerRows?.length) return;
-    await supabase.from('transactions').insert(
+    must(await supabase.from('transactions').insert(
       playerRows.map(p => ({
         player_id: p.id,
         type: 'adjustment',
@@ -553,7 +562,7 @@ export default function HistoryTab() {
         session_id: sessionId,
         note,
       }))
-    );
+    ));
   };
 
   // ── Regular session handlers ─────────────────────────────────────────────────
@@ -594,11 +603,11 @@ export default function HistoryTab() {
         existingPlayers, existingGuests, diff, String(completedSession.id),
         `Charge Adjustment — Player added to Match ${session.date} · $${newPerPerson.toFixed(2)}/person`
       );
-      await supabase.from('transactions').insert({
+      must(await supabase.from('transactions').insert({
         player_id: targetPlayer.id, type: 'match_charge', amount: -newPerPerson,
         session_id: String(completedSession.id),
         note: `Late Addition — Match ${session.date} · ${newCount} players · $${newPerPerson.toFixed(2)}/person`,
-      });
+      }));
       await loadAttendance(); await loadPlayers(); await loadCompletedSessions();
       showToast(`${playerName} added ✓`); setAddingTo(null);
     } catch (e: unknown) { showToast(`Error: ${e instanceof Error ? e.message : String(e)}`); }
@@ -628,10 +637,10 @@ export default function HistoryTab() {
       await supabase.from('completed_sessions').update({
         players: updatedPlayers, players_count: newCount, per_person: newPerPerson,
       }).eq('id', completedSession.id);
-      await supabase.from('transactions').insert({
+      must(await supabase.from('transactions').insert({
         player_id: targetPlayer.id, type: 'top_up', amount: oldPerPerson,
         note: `Reversal Credit — Removed from Match ${session.date}`,
-      });
+      }));
       await buildAdjustmentTxns(
         updatedPlayers, existingGuests, diff, String(completedSession.id),
         `Charge Adjustment — Player removed from Match ${session.date} · $${newPerPerson.toFixed(2)}/person`
@@ -667,11 +676,11 @@ export default function HistoryTab() {
         existingPlayers, existingGuests, diff, String(completedSession.id),
         `Charge Adjustment — Guest added to Match ${session.date} · $${newPerPerson.toFixed(2)}/person`
       );
-      await supabase.from('transactions').insert({
+      must(await supabase.from('transactions').insert({
         player_id: hostPlayer.id, type: 'match_charge', amount: -newPerPerson,
         session_id: String(completedSession.id),
         note: `Guest Charge — ${name} hosted by ${guestForPlayer} · Match ${session.date} · $${newPerPerson.toFixed(2)}/person`,
-      });
+      }));
       await loadAttendance(); await loadPlayers(); await loadCompletedSessions();
       showToast(`Guest added ✓`);
       setGuestMode(false); setGuestForPlayer(''); setGuestName(''); setAddingTo(null);
@@ -701,10 +710,10 @@ export default function HistoryTab() {
       await supabase.from('completed_sessions').update({
         guests: updatedGuests, players_count: newCount, per_person: newPerPerson,
       }).eq('id', completedSession.id);
-      await supabase.from('transactions').insert({
+      must(await supabase.from('transactions').insert({
         player_id: hostPlayer.id, type: 'top_up', amount: oldPerPerson,
         note: `Guest Reversal — Removed ${guest.name || 'Guest'} from Match ${session.date}`,
-      });
+      }));
       await buildAdjustmentTxns(
         existingPlayers, updatedGuests, diff, String(completedSession.id),
         `Charge Adjustment — Guest removed from Match ${session.date} · $${newPerPerson.toFixed(2)}/person`
@@ -745,18 +754,18 @@ export default function HistoryTab() {
         const { data: existingRows } = await supabase
           .from('players').select('id, name').in('name', session.players);
         if (existingRows?.length) {
-          await supabase.from('transactions').insert(
+          must(await supabase.from('transactions').insert(
             existingRows.map((p: { id: string; name: string }) => ({
               player_id: p.id, type: 'adjustment', amount: Number(diff.toFixed(2)),
               note: `Charge Adjustment — Player added to Extra Session ${session.title} · $${newPerPerson.toFixed(2)}/person`,
             }))
-          );
+          ));
         }
       }
-      await supabase.from('transactions').insert({
+      must(await supabase.from('transactions').insert({
         player_id: targetPlayer.id, type: 'match_charge', amount: -newPerPerson,
         note: `Late Addition — Extra Session ${session.title} · ${session.date} · $${newPerPerson.toFixed(2)}/person`,
-      });
+      }));
       await loadExtraSessions(); await loadPlayers();
       showToast(`${playerName} added ✓`); setAddingTo(null);
     } catch (e: unknown) { showToast(`Error: ${e instanceof Error ? e.message : String(e)}`); }
@@ -845,12 +854,12 @@ export default function HistoryTab() {
         const { data: remainingRows } = await supabase
           .from('players').select('id, name').in('name', remainingNames);
         if (remainingRows?.length) {
-          await supabase.from('transactions').insert(
+          must(await supabase.from('transactions').insert(
             remainingRows.map((p: { id: string; name: string }) => ({
               player_id: p.id, type: 'adjustment', amount: Number(diff.toFixed(2)),
               note: `Charge Adjustment — Player removed from Extra Session ${session.title} · $${newPerPerson.toFixed(2)}/person`,
             }))
-          );
+          ));
         }
       }
       await loadExtraSessions(); await loadPlayers();

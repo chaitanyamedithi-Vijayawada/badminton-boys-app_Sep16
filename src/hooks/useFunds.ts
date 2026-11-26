@@ -192,7 +192,10 @@ export function useFunds(currentUser: CurrentUser | null) {
       .eq('type', 'adjustment')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    const mapped = (data ?? []).map((t: Record<string, unknown> & { players?: { name: string } }) => ({
+    // players!inner(name) is a many-to-one join, so at runtime `players` is a
+    // single object even though the generated type says array.
+    type AdjRow = Record<string, unknown> & { players?: { name: string } };
+    const mapped = ((data ?? []) as unknown as AdjRow[]).map((t) => ({
       id: t.id as string,
       player_id: t.player_id as string,
       type: t.type as string,

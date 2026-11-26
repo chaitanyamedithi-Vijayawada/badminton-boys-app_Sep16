@@ -12,6 +12,8 @@ import BroadcastBanner from '../components/BroadcastBanner';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { getNextWeekday, formatDate, getUpcomingSessionWeekKey, makeInitials, parseCourtSplit, courtSplitCourtHours } from '../lib/constants';
 import { useWaitlist } from '../hooks/useWaitlist';
+import AddToCalendar from '../components/AddToCalendar';
+import { splitTimeRange } from '../lib/calendar';
 import { MAX_COURTS, capacityFor, courtsOpenFor } from '../lib/waitlist';
 
 // LEVEL_LABELS is only used inside the guest modal — colocated with LEVEL_COLORS for clarity
@@ -147,6 +149,16 @@ function SessionCard({ day }: { day: Day }) {
     : { wedTime: WED_DEFAULT_TIME, wedStartHour: 18, wedEndHour: 20 };
 
   const timeStr = day === 'saturday' ? SAT_TIME : wedTime;
+  const timeRange = splitTimeRange(timeStr);
+  const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const calendarEvent = timeRange ? {
+    uid: `regular-${day}-${isoDate}`,
+    title: `🏸 Badminton Boys — ${day === 'saturday' ? 'Saturday' : 'Wednesday'}`,
+    date: isoDate,
+    start: timeRange.start,
+    end: timeRange.end,
+    description: 'CourtCrew session. Check the app for courts and who is playing.',
+  } : null;
   const votingClosed = isVotingClosed(day, 7, wedStartHour);
   const dayVotingOpen = day === 'saturday' ? isSaturdayVotingOpen() : isWednesdayVotingOpen();
   const wedVotingOpen = dayVotingOpen;
@@ -501,6 +513,7 @@ function SessionCard({ day }: { day: Day }) {
           <div className="text-base font-semibold text-slate-100 capitalize">{day}</div>
           <div className="text-xs text-slate-400">{dateStr}</div>
           <div className="text-xs text-slate-400">{timeStr}</div>
+          {calendarEvent && !sessionEnded && <AddToCalendar event={calendarEvent} />}
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor}`}>{statusLabel}</span>
       </div>

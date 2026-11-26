@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { makeInitials } from '../lib/constants';
 import { isExtraSessionEnded, isExtraCutoffPassed } from '../lib/cutoff';
 import type { ExtraSession, GuestLevel } from '../types';
+import AddToCalendar from './AddToCalendar';
 
 const LEVEL_COLORS: Record<GuestLevel, string> = {
   E: 'bg-emerald-900/50 text-emerald-400 border-emerald-700/40',
@@ -201,6 +202,16 @@ export default function ExtraSessionCard({ session }: { session: ExtraSession })
           <div className="text-xl font-bold text-white leading-tight">{session.title}</div>
           <div className="text-sm font-medium text-cyan-100 mt-1">{sessionDate}</div>
           <div className="text-base font-bold text-cyan-300">{session.start_time} – {session.end_time}</div>
+          {!session.cancelled && (
+            <AddToCalendar event={{
+              uid: `extra-${session.id}`,
+              title: `🏸 ${session.title}`,
+              date: session.session_date,
+              start: session.start_time,
+              end: session.end_time,
+              description: 'CourtCrew extra session. Check the app for courts and who is playing.',
+            }} />
+          )}
         </div>
         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
           session.cancelled

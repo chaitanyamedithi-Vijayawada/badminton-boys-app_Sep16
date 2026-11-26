@@ -728,6 +728,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Only overrides are stored in playerHours; absent names default to sessionHours.
   // Deletes all existing match_charge transactions and re-inserts one clean
   // transaction per named player (which includes their guests' hours).
+  // Build one match_charge row per player. Refuses (returns an error) if any
+  // name has no player profile, so nobody is silently left uncharged.
+  const buildSessionChargeRows = useCallback((
+    sid: string,
+    names: string[],
+    chargeByName: Record<string, number>,
+    note: string,
+  ): { rows: Record<string, unknown>[] } | { error: string } => {
+    const missing = names.filter(name => !players.some(p => p.name === name));
+    if (missing.length) return { error: `Not changed: no player profile for ${missing.join(', ')}` };
+    const now = new Date().toISOString();
+    return {
+      rows: names.map(name => ({
+        player_id: players.find(p => p.name === name)!.id,
+        type: 'match_charge',
+        amount: -(chargeByName[name] ?? 0),
+        session_id: sid,
+        note,
+        created_at: now,
+      })),
+    };
+  }, [players]);
+
+  // Swap a session's match charges with no window where they're missing:
+  // insert the new rows first, then remove the old ones by id. If the insert
+  // fails nothing has changed; if removing the old rows fails, the new rows
+  // are taken out again so nobody is charged twice. Returns an error or null.
+  const replaceSessionCharges = async (
+    sid: string,
+    newRows: Record<string, unknown>[],
+  ): Promise<string | null> => {
+    const { data: oldRows, error: selErr } = await supabase
+      .from('transactions').select('id')
+      .eq('session_id', sid).eq('type', 'match_charge');
+    if (selErr) return `Not changed: ${selErr.message}`;
+    const oldIds = (oldRows ?? []).map((r: { id: string }) => r.id);
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('transactions').insert(newRows).select('id');
+    if (insErr) return `Not changed: ${insErr.message}`;
+
+    if (oldIds.length) {
+      const { error: rmErr } = await supabase.from('transactions').delete().in('id', oldIds);
+      if (rmErr) {
+        const newIds = (inserted ?? []).map((r: { id: string }) => r.id);
+        if (newIds.length) await supabase.from('transactions').delete().in('id', newIds);
+        return `Not changed: ${rmErr.message}`;
+      }
+    }
+    return null;
+  };
+
   const handleUpdateSessionPlayerHours = useCallback(async (
     completedSessionId: string | number,
     playerHours: Record<string, number>,
@@ -752,27 +804,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     adjusted.playerCharges.forEach(c => { chargeByName[c.name] = c.amount; });
 
     const sid = String(completedSessionId);
-    const { error: delErr } = await supabase
-      .from('transactions').delete()
-      .eq('session_id', sid).eq('type', 'match_charge');
-    if (delErr) { showToast(`Error: ${delErr.message}`); return; }
-
-    const newTxns = sessionData.players.map(name => {
-      const player = players.find(p => p.name === name);
-      if (!player) return null;
-      const charge = chargeByName[name] ?? 0;
-      return {
-        player_id: player.id,
-        type: 'match_charge',
-        amount: -charge,
-        session_id: sid,
-        note: `Match — ${sessionData.sortDate} · ${sessionData.day} (${sessionData.sortDate})`,
-        created_at: new Date().toISOString(),
-      };
-    }).filter(Boolean);
-
-    const { error: insErr } = await supabase.from('transactions').insert(newTxns);
-    if (insErr) { showToast(`Error: ${insErr.message}`); return; }
+    const built = buildSessionChargeRows(sid, sessionData.players, chargeByName, `Match — ${sessionData.sortDate} · ${sessionData.day}`);
+    if ('error' in built) { showToast(built.error); return; }
+    const swapErr = await replaceSessionCharges(sid, built.rows);
+    if (swapErr) { showToast(swapErr); return; }
 
     await supabase.from('completed_sessions')
       .update({ player_hours: playerHours })
@@ -781,7 +816,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await loadCompletedSessions();
     await loadWallets();
     showToast('Hours updated — charges recalculated ✓');
-  }, [players, loadCompletedSessions, loadWallets, showToast]);
+  }, [buildSessionChargeRows, loadCompletedSessions, loadWallets, showToast]);
 
   // ── Edit court count on an already-logged session ─────────────────────────────
   // For the "forgot to switch off a court" case: recomputes total cost from the
@@ -829,27 +864,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     adjusted.playerCharges.forEach(c => { chargeByName[c.name] = c.amount; });
 
     const sid = String(completedSessionId);
-    const { error: delErr } = await supabase
-      .from('transactions').delete()
-      .eq('session_id', sid).eq('type', 'match_charge');
-    if (delErr) { showToast(`Error: ${delErr.message}`); return; }
-
-    const newTxns = sessionData.players.map(name => {
-      const player = players.find(p => p.name === name);
-      if (!player) return null;
-      const charge = chargeByName[name] ?? 0;
-      return {
-        player_id: player.id,
-        type: 'match_charge',
-        amount: -charge,
-        session_id: sid,
-        note: `Match — ${sessionData.sortDate} · ${sessionData.day}`,
-        created_at: new Date().toISOString(),
-      };
-    }).filter(Boolean);
-
-    const { error: insErr } = await supabase.from('transactions').insert(newTxns);
-    if (insErr) { showToast(`Error: ${insErr.message}`); return; }
+    const built = buildSessionChargeRows(sid, sessionData.players, chargeByName, `Match — ${sessionData.sortDate} · ${sessionData.day}`);
+    if ('error' in built) { showToast(built.error); return; }
+    const swapErr = await replaceSessionCharges(sid, built.rows);
+    if (swapErr) { showToast(swapErr); return; }
 
     const totalPeople = sessionData.players.length + sessionData.guests.length;
     // Trim the stored court-name list to match the new count so the UI chips
@@ -870,7 +888,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await loadCompletedSessions();
     await loadWallets();
     showToast(`Courts updated to ${newCourtCount} — charges recalculated ✓`);
-  }, [players, loadCompletedSessions, loadWallets, showToast]);
+  }, [buildSessionChargeRows, loadCompletedSessions, loadWallets, showToast]);
 
   // ── Send session emails (manual — admin triggers after confirming everything) ─
   const handleSendSessionEmails = useCallback(async (day: Day) => {
@@ -914,9 +932,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const notifyPlayers = sessionPlayers.map(name => {
       const playerObj = players.find(p => p.name === name);
       const guestCount = sessionGuests.filter(g => g.brought_by === name).length;
-      const charge = playerObj ? (chargeMap[String(playerObj.id)] ?? perPerson * (1 + guestCount)) : perPerson;
+      // Use the amount actually charged in the ledger (it differs from
+      // perPerson when hours were adjusted); fall back to perPerson math.
+      const totalDeducted = playerObj ? (chargeMap[String(playerObj.id)] ?? perPerson * (1 + guestCount)) : perPerson * (1 + guestCount);
       const newBalance = playerObj?.balance ?? 0;
-      const totalDeducted = perPerson * (1 + guestCount);
       const oldBalance = newBalance + totalDeducted;
       return { name, oldBalance, newBalance, guestCount: guestCount || undefined };
     });
@@ -1052,7 +1071,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Find completed_sessions row. Try the full week key first, then fall
     // back to the plain-date format used by older finalisation code.
     const extraWeekKey = `extra-${sessionId}-${session.session_date}`;
-    let { data: csRows } = await supabase
+    const { data: csRows } = await supabase
       .from('completed_sessions')
       .select('id, per_person, total_cost, courts_count, session_hours, players_count, guests')
       .eq('week', extraWeekKey)
