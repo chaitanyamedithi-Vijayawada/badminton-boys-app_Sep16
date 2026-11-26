@@ -1,5 +1,5 @@
--- Hide the admin PIN from the browser. NOT YET APPLIED.
--- Apply only AFTER the pin-auth "verify-admin" action is deployed AND the app
+-- Hide the admin PIN from the browser. Applied 2026-11-26.
+-- Applied only AFTER the pin-auth "verify-admin" action is deployed AND the app
 -- version that uses it is live on badmintonboys.net; older app versions
 -- compare settings.admin_pin in the browser and would stop unlocking admin mode.
 
@@ -43,13 +43,16 @@ begin
   end loop;
 end $$;
 
-create policy "settings insert except admin secrets"
+-- Same conditions as the policies they replace, plus the admin-key exclusion.
+create policy "anon can insert settings"
   on public.settings for insert
-  to anon, authenticated
-  with check (key not in ('admin_pin', 'admin_pin_hash'));
+  to anon
+  with check (key is not null and key <> '' and value is not null
+              and key not in ('admin_pin', 'admin_pin_hash'));
 
-create policy "settings update except admin secrets"
+create policy "anon can update settings"
   on public.settings for update
-  to anon, authenticated
-  using (key not in ('admin_pin', 'admin_pin_hash'))
-  with check (key not in ('admin_pin', 'admin_pin_hash'));
+  to anon
+  using (key is not null and key <> '' and key not in ('admin_pin', 'admin_pin_hash'))
+  with check (key is not null and key <> '' and value is not null
+              and key not in ('admin_pin', 'admin_pin_hash'));
