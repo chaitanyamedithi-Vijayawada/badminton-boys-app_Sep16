@@ -22,7 +22,9 @@ finance tools, push notifications and a tournament winners board.
 ## Commands
 
 ```bash
-npm run dev        # local dev (needs .env with VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+cp .env.example .env   # then paste the anon key from Supabase → Project Settings → API
+npm install
+npm run dev        # local dev
 npm run typecheck  # 3 pre-existing errors are expected; don't add new ones
 npm run build
 npm test           # vitest, 38 tests, all must pass
@@ -35,10 +37,12 @@ npm test           # vitest, 38 tests, all must pass
 - `src/context/AppContext.tsx` shared state, data loading, login.
 - `src/lib/` pure logic: `sessionMath`, `waitlist`, `matchScheduler`,
   `tournament`, `cutoff`, `notifications`, `passkeys`, `avatar`.
-- `supabase/functions/` edge functions. **Not all deployed functions are in the
-  repo:** `pin-auth`, `session-reminders`, `waitlist-notify`,
-  `finalize-extra-sessions`, `list-subscriptions` and `copy-warmups` exist only in
-  Supabase. Pull them before editing.
+- `supabase/functions/` all 14 deployed edge functions (synced Nov 2026).
+  `supabase/config.toml` records each one's `verify_jwt` setting; keep it in
+  step when deploying. Deploy with
+  `supabase functions deploy <name> --project-ref xiewyjefyuwumnznbftr`.
+  `copy-warmups` is retired (returns 410). Cron jobs call `session-reminders`,
+  `waitlist-notify`, `finalize-extra-sessions` and `finalize-regular-sessions`.
 - `supabase/migrations/` recent migrations (older schema was made by hand).
 
 ## How we work

@@ -1,2 +1,44 @@
+# Edge function settings, matching what is deployed on project xiewyjefyuwumnznbftr.
+# verify_jwt = false means the function is public and does its own checks.
+
 [functions.complete-session]
 verify_jwt = false
+
+[functions.finalize-regular-sessions]
+verify_jwt = false
+
+[functions.monthly-email]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.server-time]
+verify_jwt = false
+
+[functions.pin-auth]
+verify_jwt = false
+
+[functions.passkey-auth]
+verify_jwt = false
+
+[functions.copy-warmups]
+verify_jwt = true
+
+[functions.finalize-extra-sessions]
+verify_jwt = true
+
+[functions.list-subscriptions]
+verify_jwt = true
+
+[functions.send-session-emails]
+verify_jwt = true
+
+[functions.session-reminders]
+verify_jwt = true
+
+[functions.waitlist-notify]
+verify_jwt = true
