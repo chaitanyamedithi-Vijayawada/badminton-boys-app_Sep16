@@ -3,6 +3,7 @@ import { Trophy, Plus, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTournament, type MatchRow } from '../hooks/useTournament';
 import TournamentWinners from '../components/TournamentWinners';
+import { GroupsSetup, GroupsLive } from '../components/tournament/GroupsKnockout';
 import { computeStandings, matchesRemaining, type TournamentTeam, type MatchResult, type ScheduledMatch } from '../lib/tournament';
 
 // Distinct colors cycling through teams and rounds
@@ -31,13 +32,12 @@ const STAGE_COLORS: Record<string, { bg: string; border: string; text: string }>
   third_place: { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.30)', text: '#94a3b8' },
 };
 
-// Cup tab: shows the Tournament Winners board only. The live tournament screen
-// (LiveTournamentView) is kept but hidden; set SHOW_LIVE_TOURNAMENT to true to
-// bring back the Tournament / Winners switch.
-const SHOW_LIVE_TOURNAMENT = false;
+// Cup tab: Tournament / Winners switch. Set SHOW_LIVE_TOURNAMENT to false to
+// show only the Winners board.
+const SHOW_LIVE_TOURNAMENT = true;
 
 export default function TournamentTab() {
-  const [view, setView] = useState<'live' | 'winners'>('winners');
+  const [view, setView] = useState<'live' | 'winners'>('live');
   if (!SHOW_LIVE_TOURNAMENT) return <TournamentWinners />;
 
   const tabBtn = (on: boolean) => ({
@@ -64,7 +64,12 @@ export default function TournamentTab() {
 function LiveTournamentView() {
   const { currentUser } = useApp();
   const isAdmin = currentUser?.role === 'admin';
-  const { tournament, teams, matches, loading, createTournament, enterScore, startKnockout, resolveFinal, endTournament, renameTeam, resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames } = useTournament();
+  const {
+    tournament, teams, matches, loading, createTournament, createGroupsTournament, saveKnockoutResult,
+    clearKnockoutResult, archiveTournament, enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
+    resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames,
+  } = useTournament();
+  const [setupFormat, setSetupFormat] = useState<'groups' | 'round_robin'>('groups');
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading tournament…</div>;
@@ -72,16 +77,56 @@ function LiveTournamentView() {
 
   // No active tournament → setup screen (admin) or a friendly message (players).
   if (!tournament) {
-    return isAdmin
-      ? <TournamentSetup onCreate={createTournament} />
-      : <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
+    if (!isAdmin) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-6">
           <Trophy size={40} className="text-slate-600" />
           <p className="text-slate-400 text-sm">No tournament is running right now.</p>
-        </div>;
+        </div>
+      );
+    }
+    const fmtBtn = (on: boolean) =>
+      `flex-1 py-2.5 rounded-xl text-sm font-semibold border ${on ? 'btn-gradient text-white border-transparent' : 'text-slate-400 bg-white/[0.04] border-white/10'}`;
+    return (
+      <div className="flex flex-col gap-4 p-4 pb-24">
+        <div className="flex items-center gap-2">
+          <Trophy size={20} style={{ color: 'var(--accent)' }} />
+          <h2 className="text-lg font-bold text-slate-100">New Tournament</h2>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 mb-2">Format</p>
+          <div className="flex gap-2">
+            <button onClick={() => setSetupFormat('groups')} className={fmtBtn(setupFormat === 'groups')}>2 groups + knockout</button>
+            <button onClick={() => setSetupFormat('round_robin')} className={fmtBtn(setupFormat === 'round_robin')}>Round robin</button>
+          </div>
+        </div>
+        {setupFormat === 'groups'
+          ? <GroupsSetup onCreate={createGroupsTournament} />
+          : <TournamentSetup onCreate={createTournament} />}
+      </div>
+    );
+  }
+
+  if (tournament.format === 'groups_knockout') {
+    return (
+      <div className="p-4 pb-24">
+        <GroupsLive
+          tournament={tournament}
+          teams={teams}
+          matches={matches}
+          isAdmin={isAdmin}
+          onEnterScore={enterScore}
+          onSaveKnockout={saveKnockoutResult}
+          onClearKnockout={clearKnockoutResult}
+          onArchive={archiveTournament}
+        />
+      </div>
+    );
   }
 
   return (
     <LiveTournament
+      onArchive={archiveTournament}
       teams={teams}
       matches={matches}
       isAdmin={isAdmin}
@@ -102,6 +147,7 @@ function LiveTournamentView() {
 }
 
 // ── Setup (admin only, when no tournament active) ─────────────────────────────
+// Round-robin setup (rendered inside the New Tournament screen).
 function TournamentSetup({ onCreate }: { onCreate: ReturnType<typeof useTournament>['createTournament'] }) {
   const [name, setName] = useState('Club Tournament');
   const [teamCount, setTeamCount] = useState(8);
@@ -150,12 +196,7 @@ function TournamentSetup({ onCreate }: { onCreate: ReturnType<typeof useTourname
   });
 
   return (
-    <div className="flex flex-col gap-4 p-4 pb-24">
-      <div className="flex items-center gap-2">
-        <Trophy size={20} style={{ color: 'var(--accent)' }} />
-        <h2 className="text-lg font-bold text-slate-100">New Tournament</h2>
-      </div>
-
+    <div className="flex flex-col gap-4">
       <input
         value={name}
         onChange={e => setName(e.target.value)}
@@ -230,8 +271,9 @@ function TournamentSetup({ onCreate }: { onCreate: ReturnType<typeof useTourname
 
 // ── Live view (everyone) ──────────────────────────────────────────────────────
 function LiveTournament({
-  teams, matches, isAdmin, tournamentName, hasKnockout, onEnterScore, onStartKnockout, onResolveFinal, onEnd, onRenameTeam, onResetScores, onResetNames, onResetKnockout, onResetSemifinals, onResetAllKeepNames,
+  teams, matches, isAdmin, tournamentName, hasKnockout, onEnterScore, onStartKnockout, onResolveFinal, onEnd, onRenameTeam, onResetScores, onResetNames, onResetKnockout, onResetSemifinals, onResetAllKeepNames, onArchive,
 }: {
+  onArchive: () => Promise<void>;
   teams: { id: string; name: string }[];
   matches: MatchRow[];
   isAdmin: boolean;
@@ -514,6 +556,12 @@ function LiveTournament({
         <button onClick={() => { if (window.confirm('End this tournament?')) onEnd(); }}
           className="mt-2 py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold">
           End tournament
+        </button>
+      )}
+      {isAdmin && !(finalDone || (!hasKnockout && groupRemaining === 0)) && (
+        <button onClick={() => { if (window.confirm('Finish this tournament and set up a new one? Its results are kept, just no longer shown here.')) void onArchive(); }}
+          className="mt-2 py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold">
+          Finish & start a new tournament
         </button>
       )}
     </div>

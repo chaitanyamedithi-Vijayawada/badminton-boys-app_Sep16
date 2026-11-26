@@ -7,21 +7,29 @@ import {
   type TournamentTeam,
   type KnockoutSize,
 } from '../lib/tournament';
+import { GROUP_SCHEDULE_2x6, KNOCKOUT_LAYOUT, COURTS as GK_COURTS, type Group } from '../lib/groupsKnockout';
 
 export interface TournamentRow {
   id: string;
   name: string;
-  format: 'round_robin' | 'round_robin_final';
+  format: 'round_robin' | 'round_robin_final' | 'groups_knockout';
   court_count: number;
   knockout_size: number;
   third_place: boolean;
   status: 'active' | 'completed';
+  semi_best_of?: number;
+  final_best_of?: number;
+  third_best_of?: number;
 }
-export interface TeamRow { id: string; tournament_id: string; name: string; seed: number | null; }
+export interface TeamRow { id: string; tournament_id: string; name: string; seed: number | null; group_name?: string | null; }
 export interface MatchRow {
   id: string; tournament_id: string; round: number; court: number;
+  // Round-robin rows always have teams; groups_knockout knockout rows start null.
   team_a: string; team_b: string; score_a: number | null; score_b: number | null;
-  stage: 'group' | 'semifinal' | 'final' | 'third_place';
+  stage: 'group' | 'quarterfinal' | 'semifinal' | 'final' | 'third_place';
+  group_name?: string | null;
+  label?: string | null;
+  games?: [number, number][] | null;
 }
 
 // Loads the single active tournament (if any) plus its teams and matches, and
@@ -101,6 +109,79 @@ export function useTournament() {
     if (mErr) throw mErr;
     await load();
   }, [load]);
+
+  // Create a "2 groups of 6 → knockout" tournament using the fixed 12-team
+  // schedule. Knockout matches are inserted up front with no teams; the app
+  // works out who plays from the standings and earlier results.
+  const createGroupsTournament = useCallback(async (opts: {
+    name: string;
+    groups: Record<Group, string[]>;   // 6 team names per group, in seed order
+    semiBestOf: number;
+    finalBestOf: number;
+    thirdPlace: boolean;
+    thirdBestOf: number;
+  }) => {
+    const { data: tRows, error: tErr } = await supabase
+      .from('tournaments')
+      .insert({
+        name: opts.name, format: 'groups_knockout', court_count: GK_COURTS,
+        knockout_size: 8, third_place: opts.thirdPlace, status: 'active',
+        semi_best_of: opts.semiBestOf, final_best_of: opts.finalBestOf, third_best_of: opts.thirdBestOf,
+      })
+      .select();
+    if (tErr || !tRows?.[0]) throw tErr ?? new Error('Create failed');
+    const tid = tRows[0].id as string;
+
+    const teamInserts = (['A', 'B'] as Group[]).flatMap(g =>
+      opts.groups[g].map((name, i) => ({ tournament_id: tid, name, seed: i + 1, group_name: g })));
+    const { data: teamRows, error: teamErr } = await supabase
+      .from('tournament_teams').insert(teamInserts).select();
+    if (teamErr || !teamRows) throw teamErr ?? new Error('Teams failed');
+
+    const idOf = new Map((teamRows as TeamRow[]).map(r => [`${r.group_name}${r.seed}`, r.id]));
+    const groupInserts = GROUP_SCHEDULE_2x6.map(f => ({
+      tournament_id: tid, round: f.round, court: f.court, stage: 'group', group_name: f.group,
+      team_a: idOf.get(`${f.group}${f.a}`), team_b: idOf.get(`${f.group}${f.b}`),
+    }));
+    const koInserts = KNOCKOUT_LAYOUT
+      .filter(k => opts.thirdPlace || k.label !== 'THIRD')
+      .map(k => ({ tournament_id: tid, round: k.round, court: k.court, stage: k.stage, label: k.label, team_a: null, team_b: null }));
+    const { error: mErr } = await supabase.from('tournament_matches').insert([...groupInserts, ...koInserts]);
+    if (mErr) throw mErr;
+    await load();
+  }, [load]);
+
+  // Save a knockout result (groups_knockout format). Stores the game scores,
+  // the games-won (or points for a one-game match) and the teams it was
+  // played between, so the record stays correct if standings change later.
+  const saveKnockoutResult = useCallback(async (
+    matchId: string, teamA: string, teamB: string, games: [number, number][], bestOf: number,
+  ) => {
+    const wins = games.reduce((acc, [a, b]) => (a > b ? [acc[0] + 1, acc[1]] : [acc[0], acc[1] + 1]), [0, 0]);
+    const [scoreA, scoreB] = bestOf === 1 ? games[0] : wins;
+    const { error } = await supabase
+      .from('tournament_matches')
+      .update({ games, score_a: scoreA, score_b: scoreB, team_a: teamA, team_b: teamB })
+      .eq('id', matchId);
+    if (error) throw error;
+  }, []);
+
+  const clearKnockoutResult = useCallback(async (matchId: string) => {
+    const { error } = await supabase
+      .from('tournament_matches')
+      .update({ games: null, score_a: null, score_b: null, team_a: null, team_b: null })
+      .eq('id', matchId);
+    if (error) throw error;
+  }, []);
+
+  // Archive the current tournament so a new one can be set up. Nothing is
+  // deleted; it stays in the database as 'completed'.
+  const archiveTournament = useCallback(async () => {
+    if (!tournament) return;
+    const { error } = await supabase.from('tournaments').update({ status: 'completed' }).eq('id', tournament.id);
+    if (error) throw error;
+    await load();
+  }, [tournament, load]);
 
   const enterScore = useCallback(async (matchId: string, scoreA: number, scoreB: number) => {
     const { error } = await supabase
@@ -269,7 +350,8 @@ export function useTournament() {
 
   return {
     tournament, teams, matches, loading,
-    createTournament, enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
+    createTournament, createGroupsTournament, saveKnockoutResult, clearKnockoutResult, archiveTournament,
+    enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
     resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames,
     reload: load,
   };
