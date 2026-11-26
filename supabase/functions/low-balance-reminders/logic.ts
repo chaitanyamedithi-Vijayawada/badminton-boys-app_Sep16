@@ -80,6 +80,83 @@ export function formatMoney(n: number): string {
   return n < 0 ? `-$${abs}` : `$${abs}`;
 }
 
+// ── Court-hours alert (admins) ───────────────────────────────────────────────
+
+export interface CourtAlertSettings {
+  enabled: boolean;
+  threshold: number;  // alert when remaining court hours are below this
+  repeatDays: number; // repeat while still low, at most this often
+}
+
+export function readCourtSettings(map: Record<string, string>): CourtAlertSettings {
+  const num = (v: string | undefined, fallback: number, min: number, max: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) && v !== undefined && v !== '' ? Math.min(max, Math.max(min, n)) : fallback;
+  };
+  return {
+    enabled: map.court_hours_alert === 'on',
+    threshold: num(map.court_hours_threshold, 10, 0, 500),
+    repeatDays: num(map.court_hours_repeat_days, 3, 1, 30),
+  };
+}
+
+/**
+ * Remaining court hours, the same way the Fees tab shows them: purchased minus
+ * used (courts × session hours, default 2), or — when an admin set an override —
+ * the override value plus hours bought since minus hours used since.
+ */
+export function computeRemainingHours(
+  payments: { hours_purchased: number | string | null; paid_at?: string | null }[],
+  sessions: { courts_count: number | null; session_hours?: number | null; created_at?: string | null }[],
+  overrideRaw: string | null | undefined,
+): number {
+  const used = (s: { courts_count: number | null; session_hours?: number | null }) =>
+    Number(s.courts_count || 0) * Number(s.session_hours ?? 2);
+  const bought = (c: { hours_purchased: number | string | null }) => Number(c.hours_purchased || 0);
+
+  if (overrideRaw) {
+    try {
+      const o = JSON.parse(overrideRaw);
+      if (o && typeof o.value === 'number' && o.date) {
+        const t = new Date(o.date).getTime();
+        const usedSince = sessions
+          .filter(s => s.created_at && new Date(s.created_at).getTime() > t)
+          .reduce((sum, s) => sum + used(s), 0);
+        const boughtSince = payments
+          .filter(c => c.paid_at && new Date(c.paid_at).getTime() > t)
+          .reduce((sum, c) => sum + bought(c), 0);
+        return o.value + boughtSince - usedSince;
+      }
+    } catch { /* malformed override: fall through */ }
+  }
+  return payments.reduce((s, c) => s + bought(c), 0) - sessions.reduce((s, x) => s + used(x), 0);
+}
+
+export type CourtAlertDecision = 'disabled' | 'ok' | 'send' | 'recently-sent';
+
+export function decideCourtAlert(
+  remaining: number,
+  settings: CourtAlertSettings,
+  lastSentIso: string | null | undefined,
+  now: Date = new Date(),
+): CourtAlertDecision {
+  if (remaining >= settings.threshold) return 'ok';
+  if (!settings.enabled) return 'disabled';
+  if (lastSentIso) {
+    const last = new Date(lastSentIso).getTime();
+    if (Number.isFinite(last) && now.getTime() - last < settings.repeatDays * 86_400_000) return 'recently-sent';
+  }
+  return 'send';
+}
+
+export function courtAlertText(remaining: number): { title: string; body: string } {
+  const h = Math.round(remaining * 10) / 10;
+  return {
+    title: `Court hours low: ${h} left`,
+    body: `Only ${h} court hours are left on the club's account. Book more hours with the venue and log the payment in the app.`,
+  };
+}
+
 /** Push notification text. */
 export function pushText(p: PlayerBalance, recipientName: string): { title: string; body: string } {
   return {

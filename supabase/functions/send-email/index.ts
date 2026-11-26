@@ -89,7 +89,51 @@ interface LowBalanceEmailPayload {
   recipientName: string;
 }
 
-type EmailPayload = SessionEmailPayload | MonthlyEmailPayload | TopUpEmailPayload | LowBalanceEmailPayload;
+interface CourtHoursEmailPayload {
+  type: "courthours";
+  to: string;
+  playerName: string;
+  remaining: number;
+  threshold: number;
+}
+
+type EmailPayload =
+  | SessionEmailPayload | MonthlyEmailPayload | TopUpEmailPayload | LowBalanceEmailPayload | CourtHoursEmailPayload;
+
+function courtHoursEmailHtml(p: CourtHoursEmailPayload): string {
+  const h = (Math.round(p.remaining * 10) / 10).toString();
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#060d14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:500px;margin:0 auto;padding:24px 16px 48px;">
+  <div style="background:linear-gradient(135deg,#0c2a3a 0%,#0e4a63 50%,#0891b2 100%);border-radius:20px 20px 0 0;padding:32px 24px 24px;text-align:center;border:1px solid #0e7490;border-bottom:none;">
+    <div style="font-size:40px;margin-bottom:10px;">⏱️</div>
+    <div style="font-size:24px;font-weight:800;color:#ecfeff;">Court hours running low</div>
+    <div style="margin-top:8px;font-size:13px;color:#67e8f9;">Admin alert</div>
+  </div>
+  <div style="background:#0a1520;border:1px solid #1e3a5f;border-top:none;border-radius:0 0 20px 20px;padding:24px;">
+    <div style="font-size:15px;color:#94a3b8;margin-bottom:20px;line-height:1.5;">
+      Hey <strong style="color:#f1f5f9;">${escapeHtml(p.playerName)}</strong> 👋 the club's prepaid court hours are below ${p.threshold}.
+    </div>
+    <div style="background:#060d14;border:1px solid #1e3a5f;border-radius:14px;padding:20px;text-align:center;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Hours left</div>
+      <div style="font-size:34px;font-weight:800;color:${p.remaining <= 0 ? "#ef4444" : "#f59e0b"};">${h}</div>
+    </div>
+    <div style="font-size:14px;color:#cbd5e1;line-height:1.6;">
+      Book more court hours with the venue, then log the payment in CourtCrew (Fees tab) so the count stays right.
+    </div>
+    <div style="text-align:center;margin-top:22px;">
+      <a href="https://badmintonboys.net" style="display:inline-block;background:#06b6d4;color:#042f2e;font-weight:700;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:12px;">Open CourtCrew</a>
+    </div>
+  </div>
+  <div style="text-align:center;padding:20px 0 0;font-size:11px;color:#334155;">
+    Badminton Boys · Langley, BC · Sent to club admins only.
+  </div>
+</div>
+</body>
+</html>`;
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -519,6 +563,9 @@ Deno.serve(async (req: Request) => {
       const bal = payload.balance < 0 ? `-$${Math.abs(payload.balance).toFixed(2)}` : `$${payload.balance.toFixed(2)}`;
       subject = `🏸 Low balance (${bal}) — time to top up`;
       html = lowBalanceEmailHtml(payload, r?.value ?? "");
+    } else if (payload.type === "courthours") {
+      subject = `⏱️ Court hours low: ${Math.round(payload.remaining * 10) / 10} left`;
+      html = courtHoursEmailHtml(payload);
     } else {
       return new Response(JSON.stringify({ error: "Unknown email type" }), {
         status: 400,

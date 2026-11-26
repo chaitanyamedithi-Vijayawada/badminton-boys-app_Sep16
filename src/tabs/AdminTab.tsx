@@ -8,6 +8,7 @@ import { getCurrentWeekKey, getCurrentWeekRange, isExtraSessionEnded, getPacific
 import type { Day, Player, PlayerTransfer } from '../types';
 import PlayerAvatar from '../components/PlayerAvatar';
 import LowBalanceReminders from '../components/admin/LowBalanceReminders';
+import CourtHoursAlert from '../components/admin/CourtHoursAlert';
 
 import { notifyBroadcast, notifyTopUpConfirmed } from '../lib/notifications';
 
@@ -1045,6 +1046,7 @@ export default function AdminTab() {
       </div>
       <div className="neon-card card-sky mb-4">
         <div className="text-sm font-semibold text-slate-200 mb-3">Court Management</div>
+        <CourtHoursAlert />
         <div className="text-[11px] text-slate-500 mb-3 bg-white/[0.03] border border-white/[0.06] rounded-lg p-2">
           Courts open automatically as players vote — 1 court per 4 voters (max 4 courts, 20 accepted).
           Extra attendees join the waitlist and auto-promote when a court opens or someone drops.
