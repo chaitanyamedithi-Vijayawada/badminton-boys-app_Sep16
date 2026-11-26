@@ -19,7 +19,7 @@ export function GroupsSetup({ onCreate }: { onCreate: ReturnType<typeof useTourn
   const [groups, setGroups] = useState<Record<Group, string[]>>({ A: blank('A'), B: blank('B') });
   const [semiBestOf, setSemiBestOf] = useState(1);
   const [finalBestOf, setFinalBestOf] = useState(3);
-  const [thirdPlace, setThirdPlace] = useState(true);
+  const [thirdPlace, setThirdPlace] = useState(false);
   const [thirdBestOf, setThirdBestOf] = useState(1);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function GroupsSetup({ onCreate }: { onCreate: ReturnType<typeof useTourn
 
       <div className="text-[11px] text-slate-400 bg-white/[0.03] border border-white/[0.06] rounded-lg p-2.5 leading-relaxed">
         12 teams in 2 groups of 6 · 6 rounds on 5 courts · group games to 21, no deuce ·
-        top 4 of each group play cross-group quarterfinals (A1–B3, B1–A3, A2–B4, B2–A4) ·
+        top 4 of each group play cross-group quarterfinals (A1–B3, B1–A3, A2–B4, B2–A4), then semis and a final ·
         knockout games 21 win by 2, cap 30.
       </div>
 
