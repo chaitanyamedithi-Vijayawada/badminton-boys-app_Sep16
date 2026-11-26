@@ -35,7 +35,8 @@ interface AppContextValue {
   // Admin PIN
   pinVerified: boolean;
   verifyAdminPin: () => boolean;
-  submitPin: (pin: string) => boolean;
+  submitPin: (pin: string) => Promise<boolean>;
+  changeAdminPin: (newPin: string) => Promise<boolean>;
 
   // Player PIN login
   isLoggedIn: boolean;
@@ -223,6 +224,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Admin PIN ────────────────────────────────────────────────────────────────
   const [pinVerified, setPinVerified] = useState(false);
+  const adminPinRef = useRef('');
 
   // ── Player PIN login ──────────────────────────────────────────────────────────
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -271,10 +273,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetPlayerPin = useCallback(async (playerId: string): Promise<void> => {
-    const { data: s } = await supabase
-      .from('settings').select('value').eq('key', 'admin_pin').maybeSingle();
+    if (!adminPinRef.current) { showToast('Unlock admin mode first.'); return; }
     const { data, error } = await supabase.functions.invoke('pin-auth', {
-      body: { action: 'reset', playerId, adminPin: s?.value ?? '' },
+      body: { action: 'reset', playerId, adminPin: adminPinRef.current },
     });
     if (error || !data?.ok) {
       showToast('Could not reset PIN. Please try again.');
@@ -339,24 +340,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ── Admin PIN verification (needs settings, declared above) ──────────────────
+  // ── Admin PIN verification ───────────────────────────────────────────────────
+  // The PIN is checked by the pin-auth server function; the browser never
+  // receives the real PIN. The PIN the admin typed is kept in memory (not
+  // storage) for this app session so admin-only server calls can send it.
+  const submitPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!pin) return false;
+    const { data, error } = await supabase.functions.invoke('pin-auth', {
+      body: { action: 'verify-admin', pin },
+    });
+    if (error) { showToast('Could not check the PIN. Check your connection.'); return false; }
+    if (data?.locked) {
+      const mins = Math.max(1, Math.ceil((data.retryAfterSeconds ?? 600) / 60));
+      showToast(`Too many wrong PINs. Try again in ${mins} min.`);
+      return false;
+    }
+    if (data?.ok) {
+      adminPinRef.current = pin;
+      setPinVerified(true);
+      return true;
+    }
+    return false;
+  }, [showToast]);
+
+  // Synchronous gate used by admin buttons across the app. When admin mode
+  // isn't unlocked yet it asks for the PIN, checks it with the server in the
+  // background, and the admin taps the button again once it's unlocked.
   const verifyAdminPin = useCallback((): boolean => {
     if (pinVerified) return true;
     const pin = window.prompt('Enter admin PIN:');
-    if (pin && pin === settings.admin_pin) {
-      setPinVerified(true);
-      return true;
+    if (pin) {
+      void submitPin(pin.trim()).then(ok => {
+        showToast(ok ? 'Admin unlocked. Tap the button again.' : 'Wrong admin PIN.');
+      });
     }
     return false;
-  }, [pinVerified, settings]);
+  }, [pinVerified, submitPin, showToast]);
 
-  const submitPin = useCallback((pin: string): boolean => {
-    if (pin && pin === settings.admin_pin) {
-      setPinVerified(true);
-      return true;
+  const changeAdminPin = useCallback(async (newPin: string): Promise<boolean> => {
+    if (!adminPinRef.current) { showToast('Unlock admin mode first.'); return false; }
+    const { data, error } = await supabase.functions.invoke('pin-auth', {
+      body: { action: 'set-admin', currentPin: adminPinRef.current, newPin },
+    });
+    if (error || !data?.ok) {
+      showToast(data?.locked ? 'Too many wrong PINs. Try again later.' : 'Could not change the admin PIN.');
+      return false;
     }
-    return false;
-  }, [settings]);
+    adminPinRef.current = newPin;
+    return true;
+  }, [showToast]);
 
   // ── RSVPs / Guests ───────────────────────────────────────────────────────────
   const [rsvpData, setRsvpData] = useState<RsvpData>({ saturday: {}, wednesday: {} });
@@ -1408,7 +1440,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     hiddenTabs, toggleTabVisibility,
     showNamePicker, setShowNamePicker,
     dataReady, fontSize, toast, showToast, refreshTab,
-    pinVerified, verifyAdminPin, submitPin,
+    pinVerified, verifyAdminPin, submitPin, changeAdminPin,
     isLoggedIn, loginWithPin, loginWithFaceId, setupPin, resetPlayerPin, logout,
     players, setPlayers, loadPlayers, loadWallets,
     handleSettleAndArchive, handleUnarchivePlayer,

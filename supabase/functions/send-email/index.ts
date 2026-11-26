@@ -1,4 +1,24 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+// Only club players can receive mail from this function, so it can't be used
+// to send email from our domain to arbitrary addresses.
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+);
+
+async function isPlayerEmail(address: string): Promise<boolean> {
+  const email = address.trim();
+  if (!email || email.length > 254 || !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) return false;
+  const { data, error } = await supabase
+    .from("players").select("id").ilike("email", email.replace(/[\\%_]/g, "\\$&")).limit(1);
+  if (error) {
+    console.error("send-email: player lookup failed", error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -415,6 +435,14 @@ Deno.serve(async (req: Request) => {
     if (!payload?.to) {
       return new Response(JSON.stringify({ error: "Missing 'to' address" }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!(await isPlayerEmail(payload.to))) {
+      console.warn("send-email: refused non-player recipient");
+      return new Response(JSON.stringify({ error: "Recipient is not a club player" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -688,9 +688,13 @@ function PinLockScreen() {
 
   const handleDelete = () => setPin(p => p.slice(0, -1));
 
-  const handleSubmit = () => {
-    if (!pin) return;
-    const ok = submitPin(pin);
+  const [checking, setChecking] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!pin || checking) return;
+    setChecking(true);
+    const ok = await submitPin(pin);
+    setChecking(false);
     if (!ok) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
@@ -739,15 +743,15 @@ function PinLockScreen() {
           );
         })}
       </div>
-      <button onClick={handleSubmit} disabled={pin.length === 0} className="mt-6 w-full max-w-[260px] flex items-center justify-center gap-2 bg-rose-600 disabled:opacity-40 text-white font-semibold py-3 rounded-xl transition-colors shadow-[0_0_16px_rgba(244,63,94,0.2)]">
-        <ShieldCheck size={18} />Unlock
+      <button onClick={handleSubmit} disabled={pin.length === 0 || checking} className="mt-6 w-full max-w-[260px] flex items-center justify-center gap-2 bg-rose-600 disabled:opacity-40 text-white font-semibold py-3 rounded-xl transition-colors shadow-[0_0_16px_rgba(244,63,94,0.2)]">
+        <ShieldCheck size={18} />{checking ? 'Checking…' : 'Unlock'}
       </button>
     </div>
   );
 }
 
 export default function AdminTab() {
-  const { myName, settings, showToast, loadSettings, loadPendingPayments, loadPlayerTransfers, pinVerified, completedSessions, completeSession, completeExtraSession, extraSessions, players, logout, handleSendSessionEmails, handleSendExtraSessionEmails } = useApp();
+  const { myName, settings, showToast, loadSettings, loadPendingPayments, loadPlayerTransfers, pinVerified, changeAdminPin, completedSessions, completeSession, completeExtraSession, extraSessions, players, logout, handleSendSessionEmails, handleSendExtraSessionEmails } = useApp();
   const [admin1, setAdmin1] = useState(settings.admin1 || 'Eswar');
   const [admin2, setAdmin2] = useState(settings.admin2 || 'Arun');
   const [payName, setPayName] = useState(settings.payment_recipient_name || 'Arun');
@@ -868,8 +872,7 @@ export default function AdminTab() {
     const pin = newPin.trim();
     if (!/^\d{4,8}$/.test(pin)) { showToast('PIN must be 4–8 digits'); return; }
     if (!window.confirm(`Change the admin PIN to ${pin}? You'll use this next time you unlock admin mode.`)) return;
-    await supabase.from('settings').upsert({ key: 'admin_pin', value: pin }, { onConflict: 'key' });
-    await loadSettings();
+    if (!(await changeAdminPin(pin))) return;
     setNewPin('');
     showToast('Admin PIN updated');
   };
