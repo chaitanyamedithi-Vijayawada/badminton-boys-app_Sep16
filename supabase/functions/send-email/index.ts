@@ -80,7 +80,60 @@ interface TopUpEmailPayload {
   note?: string;
 }
 
-type EmailPayload = SessionEmailPayload | MonthlyEmailPayload | TopUpEmailPayload;
+interface LowBalanceEmailPayload {
+  type: "lowbalance";
+  to: string;
+  playerName: string;
+  balance: number;
+  threshold: number;
+  recipientName: string;
+}
+
+type EmailPayload = SessionEmailPayload | MonthlyEmailPayload | TopUpEmailPayload | LowBalanceEmailPayload;
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+function lowBalanceEmailHtml(p: LowBalanceEmailPayload, recipientEmail: string): string {
+  const bal = p.balance < 0 ? `-$${Math.abs(p.balance).toFixed(2)}` : `$${p.balance.toFixed(2)}`;
+  const name = escapeHtml(p.playerName);
+  const who = escapeHtml(p.recipientName);
+  const sendTo = recipientEmail
+    ? `${who} (<strong>${escapeHtml(recipientEmail)}</strong>)`
+    : `<strong>${who}</strong>`;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#060d14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:500px;margin:0 auto;padding:24px 16px 48px;">
+  <div style="background:linear-gradient(135deg,#451a03 0%,#78350f 50%,#b45309 100%);border-radius:20px 20px 0 0;padding:32px 24px 24px;text-align:center;border:1px solid #92400e;border-bottom:none;">
+    <div style="font-size:40px;margin-bottom:10px;">🏸</div>
+    <div style="font-size:24px;font-weight:800;color:#fffbeb;">Time to top up</div>
+    <div style="margin-top:8px;font-size:13px;color:#fcd34d;">Your CourtCrew balance is low</div>
+  </div>
+  <div style="background:#0a1520;border:1px solid #1e3a5f;border-top:none;border-radius:0 0 20px 20px;padding:24px;">
+    <div style="font-size:15px;color:#94a3b8;margin-bottom:20px;line-height:1.5;">
+      Hey <strong style="color:#f1f5f9;">${name}</strong> 👋 your balance has dropped below $${p.threshold.toFixed(2)}.
+    </div>
+    <div style="background:#060d14;border:1px solid #1e3a5f;border-radius:14px;padding:20px;text-align:center;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Current balance</div>
+      <div style="font-size:34px;font-weight:800;color:${p.balance < 0 ? "#ef4444" : "#f59e0b"};">${bal}</div>
+    </div>
+    <div style="font-size:14px;color:#cbd5e1;line-height:1.6;">
+      Please send an Interac e-Transfer to ${sendTo}, then open the app and tap <strong>"I've sent it"</strong> so an admin can confirm it.
+    </div>
+    <div style="text-align:center;margin-top:22px;">
+      <a href="https://badmintonboys.net" style="display:inline-block;background:#f59e0b;color:#1c1917;font-weight:700;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:12px;">Open CourtCrew</a>
+    </div>
+  </div>
+  <div style="text-align:center;padding:20px 0 0;font-size:11px;color:#334155;">
+    Badminton Boys · Langley, BC · You're receiving this because your club balance is low.
+  </div>
+</div>
+</body>
+</html>`;
+}
 
 function balanceColor(balance: number): string {
   if (balance < 0) return "#ef4444";
@@ -460,6 +513,12 @@ Deno.serve(async (req: Request) => {
     } else if (payload.type === "topup") {
       subject = `💸 Top-up confirmed — +$${payload.amount.toFixed(2)} · Balance: $${payload.newBalance.toFixed(2)}`;
       html = topUpEmailHtml(payload);
+    } else if (payload.type === "lowbalance") {
+      const { data: r } = await supabase
+        .from("settings").select("value").eq("key", "payment_recipient_email").maybeSingle();
+      const bal = payload.balance < 0 ? `-$${Math.abs(payload.balance).toFixed(2)}` : `$${payload.balance.toFixed(2)}`;
+      subject = `🏸 Low balance (${bal}) — time to top up`;
+      html = lowBalanceEmailHtml(payload, r?.value ?? "");
     } else {
       return new Response(JSON.stringify({ error: "Unknown email type" }), {
         status: 400,

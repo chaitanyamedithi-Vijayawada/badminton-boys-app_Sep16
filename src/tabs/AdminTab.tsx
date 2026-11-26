@@ -7,6 +7,7 @@ import type { CourtSplit, CourtSplitSegment } from '../lib/constants';
 import { getCurrentWeekKey, getCurrentWeekRange, isExtraSessionEnded, getPacificNow } from '../lib/cutoff';
 import type { Day, Player, PlayerTransfer } from '../types';
 import PlayerAvatar from '../components/PlayerAvatar';
+import LowBalanceReminders from '../components/admin/LowBalanceReminders';
 
 import { notifyBroadcast, notifyTopUpConfirmed } from '../lib/notifications';
 
@@ -1040,6 +1041,7 @@ export default function AdminTab() {
         <VotingLockToggle day="saturday" />
         <VotingLockToggle day="wednesday" />
         <MinVoteBalanceConfig />
+        <LowBalanceReminders />
       </div>
       <div className="neon-card card-sky mb-4">
         <div className="text-sm font-semibold text-slate-200 mb-3">Court Management</div>
