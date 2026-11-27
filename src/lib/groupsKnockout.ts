@@ -305,3 +305,73 @@ export const SAMPLE_TEAMS: Record<Group, string[]> = {
   A: ['Subash + Bharath', 'Avi + Chaitu', 'Navan + Vikash', 'Sai + Nag', 'Veera + Jitin', 'Arun + Rakesh'],
   B: ['Gopi + Ganesh', 'Surya + Abhi', 'Shailesh + Arima', 'Jatinder + Ashok', 'Siva + Ravi', 'Kanna + Malli'],
 };
+
+// ── Test fill ─────────────────────────────────────────────────────────────────
+// Random but valid scores so admins can try the whole format end to end before
+// the real event (then use Reset). Existing scores are kept; only gaps are filled.
+
+export type Rng = () => number;
+const randInt = (rng: Rng, lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
+
+export function randomGroupScore(rng: Rng): Game {
+  const lo = randInt(rng, 8, 20);
+  return rng() < 0.5 ? [21, lo] : [lo, 21];
+}
+
+export function randomKnockoutGame(rng: Rng): Game {
+  let hi: number, lo: number;
+  if (rng() < 0.8) { hi = 21; lo = randInt(rng, 8, 19); }
+  else { hi = randInt(rng, 22, 30); lo = hi === 30 ? randInt(rng, 28, 29) : hi - 2; }
+  return rng() < 0.5 ? [hi, lo] : [lo, hi];
+}
+
+export function randomSeries(bestOf: number, rng: Rng): Game[] {
+  const need = Math.floor(bestOf / 2) + 1;
+  const games: Game[] = [];
+  let wa = 0, wb = 0;
+  while (wa < need && wb < need) {
+    const g = randomKnockoutGame(rng);
+    games.push(g);
+    if (g[0] > g[1]) wa++; else wb++;
+  }
+  return games;
+}
+
+export interface FillGroupMatch extends GMatch { id: string; group: Group }
+export interface TestFill {
+  group: { id: string; scoreA: number; scoreB: number }[];
+  knockout: { label: KoLabel; teamA: string; teamB: string; games: Game[] }[];
+}
+
+export function simulateTestScores(
+  teams: GTeam[],
+  groupMatches: FillGroupMatch[],
+  existingKo: Partial<Record<KoLabel, KoResult>>,
+  cfg: BestOfConfig,
+  includeThird: boolean,
+  rng: Rng = Math.random,
+): TestFill {
+  const fill: TestFill = { group: [], knockout: [] };
+  const played = groupMatches.map(m => {
+    if (m.scoreA != null && m.scoreB != null) return m;
+    const [a, b] = randomGroupScore(rng);
+    fill.group.push({ id: m.id, scoreA: a, scoreB: b });
+    return { ...m, scoreA: a, scoreB: b };
+  });
+  const standings = {} as Record<Group, GStanding[]>;
+  for (const g of ['A', 'B'] as Group[]) {
+    standings[g] = groupStandings(teams.filter(t => t.group === g), played.filter(m => m.group === g));
+  }
+  const complete: Record<Group, boolean> = { A: true, B: true };
+  const results: Partial<Record<KoLabel, KoResult>> = { ...existingKo };
+  // Walk the bracket in order; each pass can decide the next match's teams.
+  for (const def of KNOCKOUT_LAYOUT) {
+    if (def.label === 'THIRD' && !includeThird) continue;
+    const slot = resolveBracket(standings, complete, results, cfg, includeThird).find(k => k.label === def.label);
+    if (!slot?.teamA || !slot.teamB || slot.winner) continue;
+    const games = randomSeries(slot.bestOf, rng);
+    results[def.label] = { games, teamA: slot.teamA, teamB: slot.teamB };
+    fill.knockout.push({ label: def.label, teamA: slot.teamA, teamB: slot.teamB, games });
+  }
+  return fill;
+}

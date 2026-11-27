@@ -3,7 +3,7 @@ import { Trophy, Plus, Check, X, Medal, Users } from 'lucide-react';
 import type { MatchRow, TeamRow, TournamentRow, useTournament } from '../../hooks/useTournament';
 import {
   SAMPLE_TEAMS, TEAMS_PER_GROUP, QUALIFIERS_PER_GROUP, groupStandings, groupScoreProblem, seriesProblem,
-  resolveBracket, podium, koTitle, type Group, type GTeam, type GMatch, type KoLabel, type KoResult, type KoResolved, type Game,
+  resolveBracket, podium, koTitle, simulateTestScores, type TestFill, type Group, type GTeam, type GMatch, type KoLabel, type KoResult, type KoResolved, type Game,
 } from '../../lib/groupsKnockout';
 
 const GROUP_COLOR: Record<Group, string> = { A: '#60a5fa', B: '#f472b6' };
@@ -111,7 +111,7 @@ export function GroupsSetup({ onCreate }: { onCreate: ReturnType<typeof useTourn
 // ── Live view ─────────────────────────────────────────────────────────────────
 
 export function GroupsLive({
-  tournament, teams, matches, isAdmin, onEnterScore, onSaveKnockout, onClearKnockout, onArchive, onReset,
+  tournament, teams, matches, isAdmin, onEnterScore, onSaveKnockout, onClearKnockout, onArchive, onReset, onFillTest,
 }: {
   tournament: TournamentRow;
   teams: TeamRow[];
@@ -122,8 +122,10 @@ export function GroupsLive({
   onClearKnockout: (id: string) => Promise<void>;
   onArchive: () => Promise<void>;
   onReset: () => Promise<void>;
+  onFillTest: (fill: TestFill) => Promise<void>;
 }) {
   const [tab, setTab] = useState<'groups' | 'schedule' | 'knockout'>('groups');
+  const [filling, setFilling] = useState(false);
   const scoredCount = matches.filter(m => m.score_a != null || m.score_b != null).length;
 
   const gTeams: GTeam[] = useMemo(() => teams
@@ -285,6 +287,31 @@ export function GroupsLive({
             );
           })}
         </div>
+      )}
+
+      {isAdmin && !top.first && (
+        <button
+          disabled={filling}
+          onClick={() => {
+            if (!window.confirm('Fill every empty match with random test scores? Use this to try the format, then tap "Reset all scores" before the real event.')) return;
+            const existing: Partial<Record<KoLabel, KoResult>> = {};
+            koRows.forEach(m => { if (m.games?.length) existing[m.label as KoLabel] = { games: m.games, teamA: m.team_a ?? null, teamB: m.team_b ?? null }; });
+            const fill = simulateTestScores(
+              gTeams,
+              groupMatches.map(m => ({ id: m.id, group: m.group_name as Group, teamA: m.team_a, teamB: m.team_b, scoreA: m.score_a, scoreB: m.score_b })),
+              existing,
+              { semi: tournament.semi_best_of ?? 1, final: tournament.final_best_of ?? 3, third: tournament.third_best_of ?? 1 },
+              tournament.third_place,
+            );
+            setFilling(true);
+            onFillTest(fill)
+              .then(() => setTab('knockout'))
+              .catch(e => window.alert(`Test fill failed: ${e?.message ?? e}`))
+              .finally(() => setFilling(false));
+          }}
+          className="mt-2 py-2.5 rounded-xl border border-amber-400/50 text-amber-300 text-sm font-semibold disabled:opacity-50">
+          {filling ? 'Filling test scores…' : 'Fill test scores (try the format)'}
+        </button>
       )}
 
       {isAdmin && scoredCount > 0 && (

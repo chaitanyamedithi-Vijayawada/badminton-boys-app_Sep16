@@ -66,7 +66,7 @@ function LiveTournamentView() {
   const isAdmin = currentUser?.role === 'admin';
   const {
     tournament, teams, matches, loading, createTournament, createGroupsTournament, saveKnockoutResult,
-    clearKnockoutResult, archiveTournament, resetGroupsTournament, enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
+    clearKnockoutResult, archiveTournament, resetGroupsTournament, fillTestScores, enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
     resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames,
   } = useTournament();
   const [setupFormat, setSetupFormat] = useState<'groups' | 'round_robin'>('groups');
@@ -120,6 +120,7 @@ function LiveTournamentView() {
           onClearKnockout={clearKnockoutResult}
           onArchive={archiveTournament}
           onReset={resetGroupsTournament}
+          onFillTest={fillTestScores}
         />
       </div>
     );

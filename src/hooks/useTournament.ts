@@ -7,7 +7,7 @@ import {
   type TournamentTeam,
   type KnockoutSize,
 } from '../lib/tournament';
-import { GROUP_SCHEDULE_2x6, KNOCKOUT_LAYOUT, COURTS as GK_COURTS, type Group } from '../lib/groupsKnockout';
+import { GROUP_SCHEDULE_2x6, KNOCKOUT_LAYOUT, COURTS as GK_COURTS, type Group, type TestFill } from '../lib/groupsKnockout';
 
 export interface TournamentRow {
   id: string;
@@ -366,11 +366,33 @@ export function useTournament() {
     await load();
   }, [tournament, load]);
 
+  // Write a simulated set of scores (see simulateTestScores) for a test run.
+  const fillTestScores = useCallback(async (fill: TestFill) => {
+    if (!tournament) return;
+    const groupUpdates = fill.group.map(g =>
+      supabase.from('tournament_matches').update({ score_a: g.scoreA, score_b: g.scoreB }).eq('id', g.id));
+    const r1 = await Promise.all(groupUpdates);
+    const e1 = r1.find(r => r.error)?.error;
+    if (e1) throw e1;
+    // Knockout rounds one at a time, in bracket order.
+    for (const k of fill.knockout) {
+      const row = matches.find(m => m.label === k.label);
+      if (!row) continue;
+      const wins = k.games.reduce((acc, [a, b]) => (a > b ? [acc[0] + 1, acc[1]] : [acc[0], acc[1] + 1]), [0, 0]);
+      const [scoreA, scoreB] = k.games.length === 1 ? k.games[0] : wins;
+      const { error } = await supabase.from('tournament_matches')
+        .update({ games: k.games, score_a: scoreA, score_b: scoreB, team_a: k.teamA, team_b: k.teamB })
+        .eq('id', row.id);
+      if (error) throw error;
+    }
+    await load();
+  }, [tournament, matches, load]);
+
   return {
     tournament, teams, matches, loading,
     createTournament, createGroupsTournament, saveKnockoutResult, clearKnockoutResult, archiveTournament,
     enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
-    resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames, resetGroupsTournament,
+    resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames, resetGroupsTournament, fillTestScores,
     reload: load,
   };
 }

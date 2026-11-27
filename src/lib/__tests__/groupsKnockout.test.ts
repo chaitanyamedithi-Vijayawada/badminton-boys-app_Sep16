@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GROUP_SCHEDULE_2x6, groupScoreProblem, knockoutGameProblem, seriesResult, seriesProblem,
-  groupStandings, resolveBracket, podium, type GTeam, type GMatch, type Group, type GStanding,
+  groupStandings, resolveBracket, podium, simulateTestScores, type GTeam, type GMatch, type Group, type GStanding,
 } from '../groupsKnockout';
 
 describe('fixed 12-team schedule', () => {
@@ -153,5 +153,46 @@ describe('bracket', () => {
   });
   it('can leave out the 3rd-place match', () => {
     expect(resolveBracket(standings, { A: true, B: true }, {}, cfg, false).some(m => m.label === 'THIRD')).toBe(false);
+  });
+});
+
+describe('test fill (simulateTestScores)', () => {
+  // Small seeded RNG so failures are reproducible.
+  const seeded = (seed: number) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  const teams: GTeam[] = (['A', 'B'] as Group[]).flatMap(g =>
+    Array.from({ length: 6 }, (_, i) => ({ id: `${g}${i + 1}`, name: `${g}${i + 1}`, group: g, seed: i + 1 })));
+  const fixtures = GROUP_SCHEDULE_2x6.map((f, i) => ({
+    id: `m${i}`, group: f.group, teamA: `${f.group}${f.a}`, teamB: `${f.group}${f.b}`, scoreA: null, scoreB: null,
+  }));
+
+  for (const [cfg, third] of [[{ semi: 1, final: 3, third: 1 }, false], [{ semi: 3, final: 3, third: 1 }, true]] as const) {
+    it(`fills every match with valid scores and crowns a champion (semis bo${cfg.semi}, third ${third})`, () => {
+      for (let seed = 1; seed <= 25; seed++) {
+        const fill = simulateTestScores(teams, fixtures, {}, cfg, third, seeded(seed));
+        expect(fill.group).toHaveLength(30);
+        for (const g of fill.group) expect(groupScoreProblem(g.scoreA, g.scoreB)).toBeNull();
+        expect(fill.knockout.map(k => k.label)).toEqual(
+          third ? ['QF1', 'QF2', 'QF3', 'QF4', 'SF1', 'SF2', 'FINAL', 'THIRD'] : ['QF1', 'QF2', 'QF3', 'QF4', 'SF1', 'SF2', 'FINAL']);
+        for (const k of fill.knockout) {
+          const bo = k.label.startsWith('QF') ? 1 : k.label.startsWith('SF') ? cfg.semi : k.label === 'FINAL' ? cfg.final : cfg.third;
+          expect(seriesProblem(k.games, bo)).toBeNull();
+        }
+        // Feed the fill back through the real bracket logic: it must finish.
+        const played: GMatch[] = fixtures.map(m => { const g = fill.group.find(x => x.id === m.id)!; return { ...m, scoreA: g.scoreA, scoreB: g.scoreB }; });
+        const st = { A: groupStandings(teams.filter(t => t.group === 'A'), played.filter((_, i) => fixtures[i].group === 'A')),
+                     B: groupStandings(teams.filter(t => t.group === 'B'), played.filter((_, i) => fixtures[i].group === 'B')) } as Record<Group, GStanding[]>;
+        const results = Object.fromEntries(fill.knockout.map(k => [k.label, { games: k.games, teamA: k.teamA, teamB: k.teamB }]));
+        const top = podium(resolveBracket(st, { A: true, B: true }, results, cfg, third));
+        expect(top.first).toBeTruthy();
+        expect(!!top.third).toBe(third);
+      }
+    });
+  }
+
+  it('keeps scores that are already entered', () => {
+    const partial = fixtures.map((m, i) => (i === 0 ? { ...m, scoreA: 21, scoreB: 5 } : m));
+    const fill = simulateTestScores(teams, partial, {}, { semi: 1, final: 3, third: 1 }, false, seeded(7));
+    expect(fill.group).toHaveLength(29);
+    expect(fill.group.find(g => g.id === 'm0')).toBeUndefined();
   });
 });
