@@ -125,7 +125,9 @@ export function GroupsLive({
   onFillTest: (fill: TestFill) => Promise<void>;
 }) {
   const [tab, setTab] = useState<'groups' | 'schedule' | 'knockout'>('groups');
-  const [filling, setFilling] = useState(false);
+  const [confirming, setConfirming] = useState<null | 'reset' | 'fill' | 'archive'>(null);
+  const [busy, setBusy] = useState(false);
+  const [adminMsg, setAdminMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const scoredCount = matches.filter(m => m.score_a != null || m.score_b != null).length;
 
   const gTeams: GTeam[] = useMemo(() => teams
@@ -174,6 +176,38 @@ export function GroupsLive({
   const thirds = top.third
     ? [top.third]
     : bracket.filter(k => k.stage === 'semifinal' && k.loser).map(k => k.loser as string);
+  // Admin actions confirmed in-app (no browser pop-ups: installed apps can block them).
+  const runAdmin = async (action: 'reset' | 'fill' | 'archive') => {
+    setBusy(true);
+    try {
+      if (action === 'reset') {
+        await onReset();
+        setAdminMsg({ ok: true, text: 'All scores cleared.' });
+        setTab('groups');
+      } else if (action === 'fill') {
+        const existing: Partial<Record<KoLabel, KoResult>> = {};
+        koRows.forEach(m => { if (m.games?.length) existing[m.label as KoLabel] = { games: m.games, teamA: m.team_a ?? null, teamB: m.team_b ?? null }; });
+        const fill = simulateTestScores(
+          gTeams,
+          groupMatches.map(m => ({ id: m.id, group: m.group_name as Group, teamA: m.team_a, teamB: m.team_b, scoreA: m.score_a, scoreB: m.score_b })),
+          existing,
+          { semi: tournament.semi_best_of ?? 1, final: tournament.final_best_of ?? 3, third: tournament.third_best_of ?? 1 },
+          tournament.third_place,
+        );
+        await onFillTest(fill);
+        setAdminMsg({ ok: true, text: 'Test scores filled. Reset before the real event.' });
+        setTab('knockout');
+      } else {
+        await onArchive();
+      }
+      setConfirming(null);
+    } catch (e) {
+      setAdminMsg({ ok: false, text: `Didn't work: ${(e as { message?: string })?.message ?? String(e)}` });
+      setConfirming(null);
+    } finally {
+      setBusy(false);
+    }
+  };
   const rowFor = (label: KoLabel) => koRows.find(m => m.label === label);
 
   const tabBtn = (on: boolean) =>
@@ -294,50 +328,50 @@ export function GroupsLive({
         </div>
       )}
 
-      {isAdmin && !top.first && (
-        <button
-          disabled={filling}
-          onClick={() => {
-            if (!window.confirm('Fill every empty match with random test scores? Use this to try the format, then tap "Reset all scores" before the real event.')) return;
-            const existing: Partial<Record<KoLabel, KoResult>> = {};
-            koRows.forEach(m => { if (m.games?.length) existing[m.label as KoLabel] = { games: m.games, teamA: m.team_a ?? null, teamB: m.team_b ?? null }; });
-            const fill = simulateTestScores(
-              gTeams,
-              groupMatches.map(m => ({ id: m.id, group: m.group_name as Group, teamA: m.team_a, teamB: m.team_b, scoreA: m.score_a, scoreB: m.score_b })),
-              existing,
-              { semi: tournament.semi_best_of ?? 1, final: tournament.final_best_of ?? 3, third: tournament.third_best_of ?? 1 },
-              tournament.third_place,
-            );
-            setFilling(true);
-            onFillTest(fill)
-              .then(() => setTab('knockout'))
-              .catch(e => window.alert(`Test fill failed: ${e?.message ?? e}`))
-              .finally(() => setFilling(false));
-          }}
-          className="mt-2 py-2.5 rounded-xl border border-amber-400/50 text-amber-300 text-sm font-semibold disabled:opacity-50">
-          {filling ? 'Filling test scores…' : 'Fill test scores (try the format)'}
-        </button>
-      )}
-
-      {isAdmin && scoredCount > 0 && (
-        <button
-          onClick={() => {
-            if (!window.confirm(`Clear all ${scoredCount} scores? Use this after a test run. Teams and fixtures stay; the knockout goes back to TBD. This can't be undone.`)) return;
-            const typed = window.prompt('Type RESET to confirm');
-            if (typed?.trim().toUpperCase() !== 'RESET') return;
-            void onReset().catch(e => window.alert(`Reset failed: ${e?.message ?? e}`));
-          }}
-          className="mt-2 py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold">
-          Reset all scores (after a test)
-        </button>
-      )}
-
       {isAdmin && (
-        <button
-          onClick={() => { if (window.confirm('Finish this tournament and set up a new one? Its results are kept, just no longer shown here.')) void onArchive(); }}
-          className="mt-2 py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold">
-          {top.first ? 'Finish tournament' : 'Finish & start a new tournament'}
-        </button>
+        <div className="mt-2 flex flex-col gap-2">
+          {adminMsg && (
+            <p className={`text-xs text-center ${adminMsg.ok ? 'text-emerald-300' : 'text-red-300'}`}>{adminMsg.text}</p>
+          )}
+
+          {confirming ? (
+            <div className="rounded-xl p-3 border text-sm"
+              style={{ borderColor: confirming === 'reset' ? 'rgb(239 68 68 / 0.6)' : confirming === 'fill' ? 'rgb(251 191 36 / 0.6)' : 'rgb(100 116 139)' }}>
+              <p className="text-slate-200 mb-3">
+                {confirming === 'reset' && `Clear all ${scoredCount} scores? Teams and fixtures stay; the knockout goes back to TBD. This can't be undone.`}
+                {confirming === 'fill' && 'Fill every empty match with random test scores? Reset them before the real event.'}
+                {confirming === 'archive' && 'Finish this tournament and set up a new one? Its results are kept, just no longer shown here.'}
+              </p>
+              <div className="flex gap-2">
+                <button disabled={busy} onClick={() => setConfirming(null)}
+                  className="flex-1 py-2 rounded-lg bg-white/[0.06] text-slate-300 font-semibold disabled:opacity-50">Cancel</button>
+                <button disabled={busy} onClick={() => void runAdmin(confirming)}
+                  className={`flex-1 py-2 rounded-lg font-semibold text-white disabled:opacity-50 ${confirming === 'reset' ? 'bg-red-600' : confirming === 'fill' ? 'bg-amber-600' : 'bg-slate-600'}`}>
+                  {busy ? 'Working…' : confirming === 'reset' ? 'Yes, reset' : confirming === 'fill' ? 'Yes, fill' : 'Yes, finish'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {!top.first && (
+                <button onClick={() => { setAdminMsg(null); setConfirming('fill'); }}
+                  className="py-2.5 rounded-xl border border-amber-400/50 text-amber-300 text-sm font-semibold">
+                  Fill test scores (try the format)
+                </button>
+              )}
+              {scoredCount > 0 && (
+                <button onClick={() => { setAdminMsg(null); setConfirming('reset'); }}
+                  className="py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold">
+                  Reset all scores (after a test)
+                </button>
+              )}
+              <button onClick={() => { setAdminMsg(null); setConfirming('archive'); }}
+                className="py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold">
+                {top.first ? 'Finish tournament' : 'Finish & start a new tournament'}
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
