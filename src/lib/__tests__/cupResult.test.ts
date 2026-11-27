@@ -42,8 +42,21 @@ describe('cupResult', () => {
       expect(result?.champions).toHaveLength(2);
       expect(result?.runnersUp).toHaveLength(2);
       expect(result?.champions).not.toEqual(result?.runnersUp);
+      // No 3rd-place match: both semifinal losers share bronze (4 players).
+      expect(result?.third).toHaveLength(4);
+      const podium = [...result!.champions, ...result!.runnersUp, ...result!.third];
+      expect(new Set(podium).size).toBe(8);
       expect(result?.finalScore).toMatch(/^\d+–\d+(, \d+–\d+)*$/);
       expect(JSON.stringify(matches)).toBe(before);
+    }
+  });
+
+  it('with a 3rd-place match, one team gets 3rd', () => {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { t, teams, matches } = groupsTournament();
+      const { result } = cupResultOrSimulated({ ...t, third_place: true }, teams, matches, lcg(seed));
+      expect(result?.third).toHaveLength(2);
+      expect(result?.third.some(p => result.champions.includes(p) || result.runnersUp.includes(p))).toBe(false);
     }
   });
 
@@ -62,6 +75,6 @@ describe('cupResult', () => {
       { id: '2', round: 2, court: 1, stage: 'final', team_a: 'x', team_b: 'y', score_a: 15, score_b: 21 },
     ];
     const r = cupResult({ name: 'RR', format: 'round_robin_final', third_place: false }, teams, matches);
-    expect(r).toEqual({ champions: ['C', 'D'], runnersUp: ['A', 'B'], finalScore: '21–15' });
+    expect(r).toEqual({ champions: ['C', 'D'], runnersUp: ['A', 'B'], third: [], finalScore: '21–15' });
   });
 });

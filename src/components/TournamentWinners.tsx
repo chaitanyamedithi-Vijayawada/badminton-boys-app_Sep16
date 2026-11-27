@@ -33,6 +33,8 @@ export interface WinnerRow {
   runners_up: string[];
   champions_photo: string | null;
   runners_up_photo: string | null;
+  third_place: string[] | null;
+  third_place_photo: string | null;
   group_photo: string | null;
   final_score: string | null;
   created_at: string;
@@ -40,6 +42,16 @@ export interface WinnerRow {
 
 const GOLD = '#facc15';
 const SILVER = '#cbd5e1';
+const BRONZE = '#d97706';
+
+/** Players → display text. Four or more players are shown as pairs:
+ *  "Ravi & Nag · Gopi & Ganesh" (two teams sharing 3rd). */
+function namesText(names: string[]): string {
+  if (names.length <= 2) return names.join(' & ');
+  const pairs: string[] = [];
+  for (let i = 0; i < names.length; i += 2) pairs.push(names.slice(i, i + 2).join(' & '));
+  return pairs.join(' · ');
+}
 
 function fmtMonth(m: string | null) {
   if (!m) return '';
@@ -278,6 +290,9 @@ export default function TournamentWinners() {
               {(r.runners_up.length > 0 || r.runners_up_photo) && (
                 <Side label="🥈 Runners-up" color={SILVER} names={r.runners_up} photo={r.runners_up_photo} onPhoto={setViewPhoto} />
               )}
+              {((r.third_place?.length ?? 0) > 0 || r.third_place_photo) && (
+                <Side label="🥉 3rd place" color={BRONZE} names={r.third_place ?? []} photo={r.third_place_photo} onPhoto={setViewPhoto} />
+              )}
             </div>
           ))}
         </div>
@@ -307,7 +322,7 @@ function Side({ label, color, names, photo, big, onPhoto }: {
         </button>
       )}
       <div className={big ? 'text-lg font-bold text-white' : 'text-base font-semibold text-slate-200'}>
-        {names.join(' & ')}
+        {namesText(names)}
       </div>
     </div>
   );
@@ -397,6 +412,8 @@ function AddWinnerForm({ start, clubPlayers, onCancel, onSaved, onError }: {
   const [score, setScore] = useState(start.result?.finalScore ?? '');
   const [champions, setChampions] = useState<string[]>(start.result?.champions ?? []);
   const [runnersUp, setRunnersUp] = useState<string[]>(start.result?.runnersUp ?? []);
+  const [third, setThird] = useState<string[]>(start.result?.third ?? []);
+  const [thirdPhoto, setThirdPhoto] = useState<File | null>(null);
   const [champPhoto, setChampPhoto] = useState<File | null>(null);
   const [runnerPhoto, setRunnerPhoto] = useState<File | null>(null);
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
@@ -408,10 +425,11 @@ function AddWinnerForm({ start, clubPlayers, onCancel, onSaved, onError }: {
     if (!canSave) return;
     setSaving(true);
     try {
-      const [cp, rp, gp] = await Promise.all([
+      const [cp, rp, gp, tp] = await Promise.all([
         champPhoto ? uploadWinnerPhoto(champPhoto) : Promise.resolve(null),
         runnerPhoto ? uploadWinnerPhoto(runnerPhoto) : Promise.resolve(null),
         groupPhoto ? uploadWinnerPhoto(groupPhoto) : Promise.resolve(null),
+        thirdPhoto ? uploadWinnerPhoto(thirdPhoto) : Promise.resolve(null),
       ]);
       const title = start.test ? `${TEST_PREFIX}${name.trim().replace(TEST_PREFIX, '')}` : name.trim();
       const { error } = await supabase.from('tournament_winners').insert({
@@ -421,13 +439,15 @@ function AddWinnerForm({ start, clubPlayers, onCancel, onSaved, onError }: {
         runners_up: runnersUp,
         champions_photo: cp,
         runners_up_photo: rp,
+        third_place: third,
+        third_place_photo: tp,
         group_photo: gp,
         final_score: score.trim() || null,
       });
       if (error) throw error;
       // Let the whole club know (fire-and-forget; a push failure never blocks saving).
       // Test entries never notify anyone.
-      if (!start.test) notifyTournamentWinners(name.trim(), champions, !!(cp || rp || gp));
+      if (!start.test) notifyTournamentWinners(name.trim(), champions, !!(cp || rp || gp || tp));
       onSaved();
     } catch (e) {
       onError(e instanceof Error && e.message.startsWith('Photo') ? e.message : "Couldn't save. Try again.");
@@ -473,6 +493,9 @@ function AddWinnerForm({ start, clubPlayers, onCancel, onSaved, onError }: {
 
       <NamesInput label="🥈 Runners-up" color={SILVER} names={runnersUp} setNames={setRunnersUp} clubPlayers={clubPlayers} />
       <PhotoPicker label="Add runners-up photo" color={SILVER} file={runnerPhoto} onChange={setRunnerPhoto} />
+
+      <NamesInput label="🥉 3rd place" color={BRONZE} names={third} setNames={setThird} clubPlayers={clubPlayers} />
+      <PhotoPicker label="Add 3rd place photo" color={BRONZE} file={thirdPhoto} onChange={setThirdPhoto} />
 
       <button onClick={save} disabled={!canSave}
         className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40 mt-1"

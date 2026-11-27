@@ -26,6 +26,9 @@ export interface CupMatch {
 export interface CupResult {
   champions: string[];   // player names
   runnersUp: string[];
+  // 3rd place players. Two teams (four players) share bronze when there is
+  // no 3rd-place match: both semifinal losers.
+  third: string[];
   finalScore: string | null; // e.g. "21–18, 19–21, 21–15", winner's points first
 }
 
@@ -41,9 +44,10 @@ function fmtGames(games: [number, number][], winnerIsA: boolean): string {
 /** Champions and runners-up, or null while the tournament has no winner yet. */
 export function cupResult(t: CupTournament, teams: CupTeam[], matches: CupMatch[]): CupResult | null {
   const nameOf = new Map(teams.map(x => [x.id, x.name]));
-  const build = (win: string, lose: string | null, score: string | null): CupResult => ({
+  const build = (win: string, lose: string | null, thirds: (string | null)[], score: string | null): CupResult => ({
     champions: playersOf(nameOf.get(win) ?? ''),
     runnersUp: lose ? playersOf(nameOf.get(lose) ?? '') : [],
+    third: thirds.filter((x): x is string => !!x).flatMap(id => playersOf(nameOf.get(id) ?? '')),
     finalScore: score || null,
   });
 
@@ -69,7 +73,10 @@ export function cupResult(t: CupTournament, teams: CupTeam[], matches: CupMatch[
     const top = podium(bracket);
     if (!top.first) return null;
     const final = bracket.find(k => k.label === 'FINAL');
-    return build(top.first, top.second, final ? fmtGames(final.games, final.winner === final.teamA) : null);
+    const thirds = top.third
+      ? [top.third]
+      : bracket.filter(k => k.stage === 'semifinal' && k.loser).map(k => k.loser);
+    return build(top.first, top.second, thirds, final ? fmtGames(final.games, final.winner === final.teamA) : null);
   }
 
   // Round-robin with a final: the final decides it.
@@ -77,7 +84,10 @@ export function cupResult(t: CupTournament, teams: CupTeam[], matches: CupMatch[
   if (final) {
     if (final.score_a == null || final.score_b == null || final.score_a === final.score_b || !final.team_a || !final.team_b) return null;
     const aWon = final.score_a > final.score_b;
-    return build(aWon ? final.team_a : final.team_b, aWon ? final.team_b : final.team_a,
+    const tp = matches.find(m => m.stage === 'third_place');
+    const third = tp && tp.score_a != null && tp.score_b != null && tp.score_a !== tp.score_b
+      ? (tp.score_a > tp.score_b ? tp.team_a : tp.team_b) : null;
+    return build(aWon ? final.team_a : final.team_b, aWon ? final.team_b : final.team_a, [third],
       fmtGames([[final.score_a, final.score_b]], aWon));
   }
 
@@ -90,7 +100,7 @@ export function cupResult(t: CupTournament, teams: CupTeam[], matches: CupMatch[
     group.map(m => ({ round: m.round, court: m.court, scoreA: m.score_a, scoreB: m.score_b })),
   );
   if (!table[0]) return null;
-  return build(table[0].teamId, table[1]?.teamId ?? null, null);
+  return build(table[0].teamId, table[1]?.teamId ?? null, [table[2]?.teamId ?? null], null);
 }
 
 /** Apply a test fill to matches in memory (nothing is saved). */
