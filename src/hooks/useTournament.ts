@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   generateRoundRobin,
@@ -40,12 +40,18 @@ export function useTournament() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // A reset or test fill changes ~38 rows, so realtime fires ~38 reloads at
+  // once. Only the newest one may update the screen; an older reply that
+  // arrives late would otherwise put the old scores back.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     const { data: tRows } = await supabase
       .from('tournaments').select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1);
+    if (seq !== loadSeq.current) return;
     const t = (tRows?.[0] as TournamentRow) ?? null;
     setTournament(t);
     if (!t) { setTeams([]); setMatches([]); setLoading(false); return; }
@@ -54,6 +60,7 @@ export function useTournament() {
       supabase.from('tournament_teams').select('*').eq('tournament_id', t.id).order('seed', { ascending: true }),
       supabase.from('tournament_matches').select('*').eq('tournament_id', t.id).order('round', { ascending: true }),
     ]);
+    if (seq !== loadSeq.current) return;
     setTeams((teamRows as TeamRow[]) ?? []);
     setMatches((matchRows as MatchRow[]) ?? []);
     setLoading(false);
