@@ -128,7 +128,7 @@ export function GroupsLive({
   const [confirming, setConfirming] = useState<null | 'reset' | 'fill' | 'archive'>(null);
   const [busy, setBusy] = useState(false);
   const [adminMsg, setAdminMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const scoredCount = matches.filter(m => m.score_a != null || m.score_b != null).length;
+  const scoredCount = matches.filter(m => m.score_a != null || m.score_b != null || (m.games?.length ?? 0) > 0).length;
 
   const gTeams: GTeam[] = useMemo(() => teams
     .filter(t => t.group_name === 'A' || t.group_name === 'B')
@@ -338,7 +338,9 @@ export function GroupsLive({
             <div className="rounded-xl p-3 border text-sm"
               style={{ borderColor: confirming === 'reset' ? 'rgb(239 68 68 / 0.6)' : confirming === 'fill' ? 'rgb(251 191 36 / 0.6)' : 'rgb(100 116 139)' }}>
               <p className="text-slate-200 mb-3">
-                {confirming === 'reset' && `Clear all ${scoredCount} scores? Teams and fixtures stay; the knockout goes back to TBD. This can't be undone.`}
+                {confirming === 'reset' && (scoredCount > 0
+                  ? `Clear all ${scoredCount} scores? Teams and fixtures stay; the knockout goes back to TBD. This can't be undone.`
+                  : 'No scores are saved right now. Reset anyway? It clears anything left over and refreshes the screen.')}
                 {confirming === 'fill' && 'Fill every empty match with random test scores? Reset them before the real event.'}
                 {confirming === 'archive' && 'Finish this tournament and set up a new one? Its results are kept, just no longer shown here.'}
               </p>
@@ -359,12 +361,10 @@ export function GroupsLive({
                   Fill test scores (try the format)
                 </button>
               )}
-              {scoredCount > 0 && (
-                <button onClick={() => { setAdminMsg(null); setConfirming('reset'); }}
-                  className="py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold">
-                  Reset all scores (after a test)
-                </button>
-              )}
+              <button onClick={() => { setAdminMsg(null); setConfirming('reset'); }}
+                className="py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold">
+                Reset all scores{scoredCount > 0 ? ` (${scoredCount} entered)` : ''}
+              </button>
               <button onClick={() => { setAdminMsg(null); setConfirming('archive'); }}
                 className="py-2.5 rounded-xl border border-slate-600 text-slate-300 text-sm font-semibold">
                 {top.first ? 'Finish tournament' : 'Finish & start a new tournament'}
