@@ -169,6 +169,11 @@ export function GroupsLive({
   }, [koRows, standings, complete, tournament]);
 
   const top = podium(bracket);
+  // 3rd place: the 3rd-place match winner, or both semifinal losers (joint
+  // bronze) when there is no 3rd-place match.
+  const thirds = top.third
+    ? [top.third]
+    : bracket.filter(k => k.stage === 'semifinal' && k.loser).map(k => k.loser as string);
   const rowFor = (label: KoLabel) => koRows.find(m => m.label === label);
 
   const tabBtn = (on: boolean) =>
@@ -187,13 +192,13 @@ export function GroupsLive({
       </div>
 
       {top.first && (
-        <div className="rounded-xl p-4 text-center" style={{ background: 'color-mix(in srgb, var(--accent) 14%, transparent)', border: '1px solid var(--accent)' }}>
-          <Trophy size={28} style={{ color: 'var(--accent)' }} className="mx-auto mb-1" />
-          <p className="text-xs uppercase tracking-widest text-slate-400">Champions</p>
-          <p className="text-xl font-bold" style={{ color: 'var(--accent)' }}>{nameOf(top.first)}</p>
-          <p className="text-xs text-slate-300 mt-1">
-            Runners-up: {nameOf(top.second)}{top.third && <> · 3rd: {nameOf(top.third)}</>}
-          </p>
+        <div className="rounded-xl p-4" style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid var(--accent)' }}>
+          <p className="text-xs uppercase tracking-widest text-slate-400 text-center mb-3">Winners</p>
+          <div className="flex items-end justify-center gap-2">
+            <PodiumSpot place={2} names={[nameOf(top.second)]} />
+            <PodiumSpot place={1} names={[nameOf(top.first)]} />
+            <PodiumSpot place={3} names={thirds.map(nameOf)} />
+          </div>
         </div>
       )}
 
@@ -334,6 +339,40 @@ export function GroupsLive({
           {top.first ? 'Finish tournament' : 'Finish & start a new tournament'}
         </button>
       )}
+    </div>
+  );
+}
+
+const MEDAL: Record<1 | 2 | 3, { fill: string; rim: string; label: string; height: string }> = {
+  1: { fill: '#facc15', rim: '#a16207', label: 'Champions', height: 'pt-0' },
+  2: { fill: '#e2e8f0', rim: '#64748b', label: 'Runners-up', height: 'pt-5' },
+  3: { fill: '#f59e0b', rim: '#9a3412', label: '3rd place', height: 'pt-8' },
+};
+
+function MedalIcon({ place, size = 44 }: { place: 1 | 2 | 3; size?: number }) {
+  const m = MEDAL[place];
+  return (
+    <svg width={size} height={size * 1.25} viewBox="0 0 40 50" aria-hidden="true">
+      <path d="M10 0h8l6 16h-8z" fill="#3b82f6" />
+      <path d="M30 0h-8l-6 16h8z" fill="#ef4444" />
+      <circle cx="20" cy="32" r="15" fill={m.rim} />
+      <circle cx="20" cy="32" r="12" fill={m.fill} />
+      <text x="20" y="37.5" textAnchor="middle" fontSize="15" fontWeight="800" fill={m.rim}>{place}</text>
+    </svg>
+  );
+}
+
+function PodiumSpot({ place, names }: { place: 1 | 2 | 3; names: string[] }) {
+  const m = MEDAL[place];
+  if (names.length === 0) return null;
+  return (
+    <div className={`flex-1 min-w-0 flex flex-col items-center text-center ${m.height}`}>
+      <MedalIcon place={place} size={place === 1 ? 52 : 40} />
+      <p className="text-[10px] uppercase tracking-wider text-slate-400 mt-1">{m.label}</p>
+      {names.map(n => (
+        <p key={n} className={`font-bold leading-tight ${place === 1 ? 'text-base' : 'text-xs'}`}
+          style={{ color: place === 1 ? 'var(--accent)' : '#e2e8f0' }}>{n}</p>
+      ))}
     </div>
   );
 }

@@ -62,8 +62,10 @@ export default function TournamentTab() {
 }
 
 function LiveTournamentView() {
-  const { currentUser } = useApp();
-  const isAdmin = currentUser?.role === 'admin';
+  const { currentUser, pinVerified } = useApp();
+  // Named admins, or anyone who has unlocked the Admin tab with the admin PIN
+  // this session (same rule as the Match tab).
+  const isAdmin = currentUser?.role === 'admin' || pinVerified;
   const {
     tournament, teams, matches, loading, createTournament, createGroupsTournament, saveKnockoutResult,
     clearKnockoutResult, archiveTournament, resetGroupsTournament, fillTestScores, enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
