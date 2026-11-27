@@ -425,21 +425,34 @@ function GroupMatchCard({ match, nameA, nameB, tagA, tagB, isAdmin, onSave }: {
 }) {
   const done = match.score_a != null && match.score_b != null;
   const [editing, setEditing] = useState(false);
-  const [a, setA] = useState(match.score_a?.toString() ?? '');
-  const [b, setB] = useState(match.score_b?.toString() ?? '');
+  const [a, setA] = useState('');
+  const [b, setB] = useState('');
   const [saving, setSaving] = useState(false);
+  // In-app messages (installed PWAs can block window.confirm/alert).
+  const [warn, setWarn] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const g = (match.group_name ?? 'A') as Group;
   const winA = done && (match.score_a as number) > (match.score_b as number);
   const winB = done && (match.score_b as number) > (match.score_a as number);
+
+  // Always start from the current saved score, so a reset never brings old numbers back.
+  const startEdit = () => {
+    setA(match.score_a?.toString() ?? '');
+    setB(match.score_b?.toString() ?? '');
+    setWarn(null); setErr(null);
+    setEditing(true);
+  };
+  const cancel = () => { setEditing(false); setWarn(null); setErr(null); };
 
   const save = async () => {
     const na = Number(a), nb = Number(b);
     if (a === '' || b === '') return;
     const problem = groupScoreProblem(na, nb);
-    if (problem && !window.confirm(`${problem}.\n\nSave ${na}–${nb} anyway?`)) return;
-    setSaving(true);
-    try { await onSave(match.id, na, nb); setEditing(false); }
-    catch { window.alert('Could not save the score. Check your connection and try again.'); }
+    const msg = problem ? `${problem}. Tap Save again to keep ${na}–${nb}.` : null;
+    if (msg && warn !== msg) { setWarn(msg); return; }
+    setSaving(true); setErr(null);
+    try { await onSave(match.id, na, nb); setEditing(false); setWarn(null); }
+    catch { setErr('Could not save the score. Check your connection and try again.'); }
     finally { setSaving(false); }
   };
 
@@ -452,9 +465,9 @@ function GroupMatchCard({ match, nameA, nameB, tagA, tagB, isAdmin, onSave }: {
         </span>
         {editing ? (
           <div className="flex items-center gap-1 flex-shrink-0">
-            <ScoreInput value={a} onChange={setA} label={`${nameA} score`} />
+            <ScoreInput value={a} onChange={v => { setA(v); setWarn(null); }} label={`${nameA} score`} />
             <span className="text-slate-500">–</span>
-            <ScoreInput value={b} onChange={setB} label={`${nameB} score`} />
+            <ScoreInput value={b} onChange={v => { setB(v); setWarn(null); }} label={`${nameB} score`} />
           </div>
         ) : (
           <span className="text-sm font-bold text-slate-100 flex-shrink-0 tabular-nums">{done ? `${match.score_a} – ${match.score_b}` : 'vs'}</span>
@@ -463,18 +476,20 @@ function GroupMatchCard({ match, nameA, nameB, tagA, tagB, isAdmin, onSave }: {
           {nameB}<span className="text-[10px] text-slate-500 ml-1">{tagB}</span>
         </span>
       </div>
+      {editing && warn && <p className="text-[11px] text-amber-300 mt-1.5 text-right">{warn}</p>}
+      {editing && err && <p className="text-[11px] text-rose-300 mt-1.5 text-right">{err}</p>}
       {isAdmin && (
         <div className="mt-1.5 flex justify-end gap-3">
           {editing ? (
             <>
-              <button onClick={() => { setEditing(false); setA(match.score_a?.toString() ?? ''); setB(match.score_b?.toString() ?? ''); }}
+              <button onClick={cancel}
                 className="text-[11px] text-slate-400 flex items-center gap-1"><X size={12} />Cancel</button>
               <button onClick={save} disabled={saving} className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                 <Check size={12} />{saving ? 'Saving…' : 'Save'}
               </button>
             </>
           ) : (
-            <button onClick={() => setEditing(true)} className="text-[11px] text-violet-300 opacity-80 hover:opacity-100">
+            <button onClick={startEdit} className="text-[11px] text-violet-300 opacity-80 hover:opacity-100">
               {done ? 'Edit score' : '+ Enter score'}
             </button>
           )}
@@ -495,24 +510,37 @@ function KnockoutCard({ ko, rowId, isAdmin, nameOf, tagOf, onSave, onClear }: {
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<[string, string][]>([]);
   const [saving, setSaving] = useState(false);
+  const [warn, setWarn] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const color = STAGE_COLOR[ko.stage];
 
   const startEdit = () => {
     const base: [string, string][] = ko.games.map(([a, b]) => [String(a), String(b)]);
     while (base.length < ko.bestOf) base.push(['', '']);
     setRows(base);
+    setWarn(null); setErr(null); setConfirmClear(false);
     setEditing(true);
   };
 
   const save = async () => {
     if (!rowId || !ko.teamA || !ko.teamB) return;
     const games: Game[] = rows.filter(([a, b]) => a !== '' && b !== '').map(([a, b]) => [Number(a), Number(b)]);
-    const problem = seriesProblem(games, ko.bestOf);
-    if (problem && !window.confirm(`${problem}.\n\nSave anyway?`)) return;
     if (!games.length) return;
-    setSaving(true);
-    try { await onSave(rowId, ko.teamA, ko.teamB, games, ko.bestOf); setEditing(false); }
-    catch { window.alert('Could not save the result. Check your connection and try again.'); }
+    const problem = seriesProblem(games, ko.bestOf);
+    const msg = problem ? `${problem}. Tap Save again to keep it.` : null;
+    if (msg && warn !== msg) { setWarn(msg); return; }
+    setSaving(true); setErr(null);
+    try { await onSave(rowId, ko.teamA, ko.teamB, games, ko.bestOf); setEditing(false); setWarn(null); }
+    catch { setErr('Could not save the result. Check your connection and try again.'); }
+    finally { setSaving(false); }
+  };
+
+  const clear = async () => {
+    if (!rowId) return;
+    setSaving(true); setErr(null);
+    try { await onClear(rowId); setConfirmClear(false); }
+    catch { setErr('Could not clear the result. Check your connection and try again.'); }
     finally { setSaving(false); }
   };
 
@@ -551,20 +579,28 @@ function KnockoutCard({ ko, rowId, isAdmin, nameOf, tagOf, onSave, onClear }: {
           {rows.map(([a, b], i) => (
             <div key={i} className="flex items-center justify-center gap-1.5">
               <span className="text-[10px] text-slate-500 w-12">Game {i + 1}</span>
-              <ScoreInput value={a} onChange={v => setRows(r => r.map((x, j) => j === i ? [v, x[1]] : x))} label={`Game ${i + 1} ${nameOf(ko.teamA)}`} />
+              <ScoreInput value={a} onChange={v => { setWarn(null); setRows(r => r.map((x, j) => j === i ? [v, x[1]] : x)); }} label={`Game ${i + 1} ${nameOf(ko.teamA)}`} />
               <span className="text-slate-500">–</span>
-              <ScoreInput value={b} onChange={v => setRows(r => r.map((x, j) => j === i ? [x[0], v] : x))} label={`Game ${i + 1} ${nameOf(ko.teamB)}`} />
+              <ScoreInput value={b} onChange={v => { setWarn(null); setRows(r => r.map((x, j) => j === i ? [x[0], v] : x)); }} label={`Game ${i + 1} ${nameOf(ko.teamB)}`} />
             </div>
           ))}
           {ko.bestOf > 1 && <p className="text-[10px] text-slate-500 text-center">Leave game 3 empty if it wasn't needed.</p>}
         </div>
       )}
 
+      {editing && warn && <p className="text-[11px] text-amber-300 mt-1.5 text-right">{warn}</p>}
+      {err && <p className="text-[11px] text-rose-300 mt-1.5 text-right">{err}</p>}
       {isAdmin && ready && rowId && (
         <div className="mt-1.5 flex justify-end gap-3">
-          {editing ? (
+          {confirmClear ? (
             <>
-              <button onClick={() => setEditing(false)} className="text-[11px] text-slate-400 flex items-center gap-1"><X size={12} />Cancel</button>
+              <span className="text-[11px] text-slate-300 mr-auto">Clear the {koTitle(ko.label)} result?</span>
+              <button onClick={() => setConfirmClear(false)} className="text-[11px] text-slate-400">Cancel</button>
+              <button onClick={clear} disabled={saving} className="text-[11px] text-rose-300 font-semibold">{saving ? 'Clearing…' : 'Yes, clear'}</button>
+            </>
+          ) : editing ? (
+            <>
+              <button onClick={() => { setEditing(false); setWarn(null); setErr(null); }} className="text-[11px] text-slate-400 flex items-center gap-1"><X size={12} />Cancel</button>
               <button onClick={save} disabled={saving} className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                 <Check size={12} />{saving ? 'Saving…' : 'Save'}
               </button>
@@ -572,7 +608,7 @@ function KnockoutCard({ ko, rowId, isAdmin, nameOf, tagOf, onSave, onClear }: {
           ) : (
             <>
               {played && (
-                <button onClick={() => { if (window.confirm(`Clear the ${koTitle(ko.label)} result?`)) void onClear(rowId); }}
+                <button onClick={() => { setErr(null); setConfirmClear(true); }}
                   className="text-[11px] text-rose-300 opacity-80 hover:opacity-100">Clear</button>
               )}
               <button onClick={startEdit} className="text-[11px] text-violet-300 opacity-80 hover:opacity-100">
