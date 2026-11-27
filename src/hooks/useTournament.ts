@@ -348,11 +348,29 @@ export function useTournament() {
     await load();
   }, [tournament, matches, teams, load]);
 
+  // Groups + knockout: wipe every score so a test run can be cleared before the
+  // real event. Group pairings and teams stay; knockout slots go back to TBD.
+  const resetGroupsTournament = useCallback(async () => {
+    if (!tournament) return;
+    const { error: e1 } = await supabase
+      .from('tournament_matches')
+      .update({ score_a: null, score_b: null, games: null })
+      .eq('tournament_id', tournament.id);
+    if (e1) throw e1;
+    const { error: e2 } = await supabase
+      .from('tournament_matches')
+      .update({ team_a: null, team_b: null })
+      .eq('tournament_id', tournament.id)
+      .not('label', 'is', null);
+    if (e2) throw e2;
+    await load();
+  }, [tournament, load]);
+
   return {
     tournament, teams, matches, loading,
     createTournament, createGroupsTournament, saveKnockoutResult, clearKnockoutResult, archiveTournament,
     enterScore, startKnockout, resolveFinal, endTournament, renameTeam,
-    resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames,
+    resetScores, resetNames, resetKnockout, resetSemifinals, resetAllKeepNames, resetGroupsTournament,
     reload: load,
   };
 }

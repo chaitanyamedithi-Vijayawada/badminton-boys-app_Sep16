@@ -111,7 +111,7 @@ export function GroupsSetup({ onCreate }: { onCreate: ReturnType<typeof useTourn
 // ── Live view ─────────────────────────────────────────────────────────────────
 
 export function GroupsLive({
-  tournament, teams, matches, isAdmin, onEnterScore, onSaveKnockout, onClearKnockout, onArchive,
+  tournament, teams, matches, isAdmin, onEnterScore, onSaveKnockout, onClearKnockout, onArchive, onReset,
 }: {
   tournament: TournamentRow;
   teams: TeamRow[];
@@ -121,8 +121,10 @@ export function GroupsLive({
   onSaveKnockout: (id: string, teamA: string, teamB: string, games: Game[], bestOf: number) => Promise<void>;
   onClearKnockout: (id: string) => Promise<void>;
   onArchive: () => Promise<void>;
+  onReset: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<'groups' | 'schedule' | 'knockout'>('groups');
+  const scoredCount = matches.filter(m => m.score_a != null || m.score_b != null).length;
 
   const gTeams: GTeam[] = useMemo(() => teams
     .filter(t => t.group_name === 'A' || t.group_name === 'B')
@@ -283,6 +285,19 @@ export function GroupsLive({
             );
           })}
         </div>
+      )}
+
+      {isAdmin && scoredCount > 0 && (
+        <button
+          onClick={() => {
+            if (!window.confirm(`Clear all ${scoredCount} scores? Use this after a test run. Teams and fixtures stay; the knockout goes back to TBD. This can't be undone.`)) return;
+            const typed = window.prompt('Type RESET to confirm');
+            if (typed?.trim().toUpperCase() !== 'RESET') return;
+            void onReset().catch(e => window.alert(`Reset failed: ${e?.message ?? e}`));
+          }}
+          className="mt-2 py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold">
+          Reset all scores (after a test)
+        </button>
       )}
 
       {isAdmin && (
