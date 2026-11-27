@@ -1,8 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Trophy, Plus, Trash2, X, Camera } from 'lucide-react';
+import { Trophy, Plus, Trash2, X, Camera, FlaskConical, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useApp } from '../context/AppContext';
 import { notifyTournamentWinners } from '../lib/notifications';
+import { cupResult, cupResultOrSimulated, type CupResult, type CupTournament, type CupTeam, type CupMatch } from '../lib/cupResult';
+
+// Test entries are saved with this prefix so "Reset test entries" can find them.
+const TEST_PREFIX = 'TEST · ';
+
+interface CupData { t: CupTournament & { id: string }; teams: CupTeam[]; matches: CupMatch[] }
+
+/** The newest Cup tournament (active or finished) with its teams and matches. */
+async function loadLatestCup(): Promise<CupData | null> {
+  const { data: tRows } = await supabase.from('tournaments').select('*')
+    .order('created_at', { ascending: false }).limit(1);
+  const t = tRows?.[0] as (CupTournament & { id: string }) | undefined;
+  if (!t) return null;
+  const [{ data: teams }, { data: matches }] = await Promise.all([
+    supabase.from('tournament_teams').select('*').eq('tournament_id', t.id),
+    supabase.from('tournament_matches').select('*').eq('tournament_id', t.id),
+  ]);
+  return { t, teams: (teams as CupTeam[]) ?? [], matches: (matches as CupMatch[]) ?? [] };
+}
+
+interface FormStart { test: boolean; name: string; result: CupResult | null; note: string | null }
 
 export interface WinnerRow {
   id: string;
@@ -57,15 +78,23 @@ async function uploadWinnerPhoto(file: File): Promise<string> {
   return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
 }
 
-// Tournament winners board. Admins add each tournament by hand: month played,
-// winners and runners-up names, and a photo for each. Newest first.
+// Tournament winners board. "Add winners from Cup" fills in the names and final
+// score from the Cup tournament; the admin adds photos and saves. "Test" does
+// the same with a test entry (random results if the Cup isn't finished) that
+// "Reset test entries" removes. Newest first.
 export default function TournamentWinners() {
-  const { players, currentUser, showToast } = useApp();
-  const isAdmin = currentUser?.role === 'admin';
+  const { players, currentUser, pinVerified, showToast } = useApp();
+  const isAdmin = currentUser?.role === 'admin' || pinVerified;
   const [rows, setRows] = useState<WinnerRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<FormStart | null>(null);
+  const [opening, setOpening] = useState(false);
   const [viewPhoto, setViewPhoto] = useState<string | null>(null);
+  // In-app confirms (installed apps can block window.confirm).
+  const [confirmRemove, setConfirmRemove] = useState<WinnerRow | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const testRows = rows.filter(r => r.tournament_name.startsWith(TEST_PREFIX));
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -87,28 +116,102 @@ export default function TournamentWinners() {
   }, [load]);
 
   const remove = async (row: WinnerRow) => {
-    if (!window.confirm(`Remove "${row.tournament_name}" from the winners list?`)) return;
+    setBusy(true);
     const { error } = await supabase.from('tournament_winners').delete().eq('id', row.id);
+    setBusy(false);
+    setConfirmRemove(null);
     if (error) { showToast("Couldn't remove it. Try again."); return; }
     showToast('Removed');
     load();
   };
 
+  const resetTests = async () => {
+    setBusy(true);
+    const { error } = await supabase.from('tournament_winners').delete().like('tournament_name', `${TEST_PREFIX}%`);
+    setBusy(false);
+    setConfirmReset(false);
+    if (error) { showToast("Couldn't remove the test entries. Try again."); return; }
+    showToast('Test entries removed');
+    load();
+  };
+
+  // Open the form filled in from the Cup tournament.
+  const openForm = async (test: boolean) => {
+    setOpening(true);
+    setConfirmReset(false);
+    try {
+      const cup = await loadLatestCup();
+      if (!cup) { setForm({ test, name: '', result: null, note: 'No Cup tournament found. Fill in the names yourself.' }); return; }
+      if (test) {
+        const { result, simulated } = cupResultOrSimulated(cup.t, cup.teams, cup.matches);
+        setForm({
+          test, name: cup.t.name, result,
+          note: !result ? 'The Cup has no results to test with. Fill in names yourself.'
+            : simulated ? "Test entry: the Cup isn't finished, so these winners come from random test scores."
+              : 'Test entry: winners taken from the Cup results.',
+        });
+      } else {
+        const result = cupResult(cup.t, cup.teams, cup.matches);
+        setForm({
+          test, name: cup.t.name, result,
+          note: result ? 'Filled in from the Cup results. Add the photos and save.'
+            : "The Cup final hasn't been played yet, so names are empty. Fill them in or come back after the final.",
+        });
+      }
+    } catch {
+      setForm({ test, name: '', result: null, note: "Couldn't load the Cup results. Fill in the names yourself." });
+    } finally {
+      setOpening(false);
+    }
+  };
+
   return (
     <div>
-      {isAdmin && !adding && (
-        <button onClick={() => setAdding(true)}
-          className="w-full mb-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-          style={{ background: GOLD, color: '#1a1300' }}>
-          <Plus size={16} /> Add tournament winners
-        </button>
+      {isAdmin && !form && (
+        <div className="mb-4 flex flex-col gap-2">
+          <button onClick={() => openForm(false)} disabled={opening}
+            className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+            style={{ background: GOLD, color: '#1a1300' }}>
+            <Plus size={16} /> {opening ? 'Loading Cup results…' : 'Add winners from Cup'}
+          </button>
+          <div className="flex gap-2">
+            <button onClick={() => openForm(true)} disabled={opening}
+              className="flex-1 py-2.5 rounded-xl border border-amber-400/50 text-amber-300 text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
+              <FlaskConical size={14} /> Test
+            </button>
+            <button onClick={() => setConfirmReset(true)}
+              className="flex-1 py-2.5 rounded-xl border border-red-500/50 text-red-300 text-sm font-semibold flex items-center justify-center gap-1.5">
+              <RotateCcw size={14} /> Reset tests{testRows.length ? ` (${testRows.length})` : ''}
+            </button>
+          </div>
+          {confirmReset && (
+            <div className="rounded-xl p-3 border border-red-500/60 text-sm">
+              <p className="text-slate-200 mb-3">
+                {testRows.length
+                  ? `Remove ${testRows.length} test ${testRows.length === 1 ? 'entry' : 'entries'} from the Winners board? Real entries stay.`
+                  : 'There are no test entries right now.'}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmReset(false)} className="flex-1 py-2 rounded-lg bg-white/[0.06] text-slate-300">
+                  {testRows.length ? 'Cancel' : 'OK'}
+                </button>
+                {testRows.length > 0 && (
+                  <button onClick={resetTests} disabled={busy} className="flex-1 py-2 rounded-lg bg-red-500/80 text-white font-semibold">
+                    {busy ? 'Removing…' : 'Yes, remove'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {adding && (
+      {form && (
         <AddWinnerForm
+          start={form}
           clubPlayers={players.filter(p => !p.archived).map(p => p.name).sort((a, b) => a.localeCompare(b))}
-          onCancel={() => setAdding(false)}
-          onSaved={() => { setAdding(false); showToast('Winners added 🏆'); load(); }}
+          onCancel={() => setForm(null)}
+          onSaved={() => { const t = form.test; setForm(null); showToast(t ? 'Test entry added' : 'Winners added 🏆'); load(); }}
           onError={msg => showToast(msg)}
         />
       )}
@@ -144,11 +247,22 @@ export default function TournamentWinners() {
                   </div>
                 </div>
                 {isAdmin && (
-                  <button onClick={() => remove(r)} aria-label="Remove" className="p-1.5 text-slate-500 hover:text-red-400">
+                  <button onClick={() => setConfirmRemove(r)} aria-label="Remove" className="p-1.5 text-slate-500 hover:text-red-400">
                     <Trash2 size={16} />
                   </button>
                 )}
               </div>
+              {confirmRemove?.id === r.id && (
+                <div className="mx-4 mb-3 rounded-xl p-3 border border-red-500/60 text-sm">
+                  <p className="text-slate-200 mb-3">Remove "{r.tournament_name}" from the winners list?</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmRemove(null)} className="flex-1 py-2 rounded-lg bg-white/[0.06] text-slate-300">Cancel</button>
+                    <button onClick={() => remove(r)} disabled={busy} className="flex-1 py-2 rounded-lg bg-red-500/80 text-white font-semibold">
+                      {busy ? 'Removing…' : 'Yes, remove'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {r.group_photo && (
                 <div className="px-4 pb-4">
@@ -275,14 +389,14 @@ function NamesInput({ label, color, names, setNames, clubPlayers }: {
   );
 }
 
-function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
-  clubPlayers: string[]; onCancel: () => void; onSaved: () => void; onError: (msg: string) => void;
+function AddWinnerForm({ start, clubPlayers, onCancel, onSaved, onError }: {
+  start: FormStart; clubPlayers: string[]; onCancel: () => void; onSaved: () => void; onError: (msg: string) => void;
 }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(start.name);
   const [month, setMonth] = useState(() => new Date().toLocaleDateString('en-CA').slice(0, 7));
-  const [score, setScore] = useState('');
-  const [champions, setChampions] = useState<string[]>([]);
-  const [runnersUp, setRunnersUp] = useState<string[]>([]);
+  const [score, setScore] = useState(start.result?.finalScore ?? '');
+  const [champions, setChampions] = useState<string[]>(start.result?.champions ?? []);
+  const [runnersUp, setRunnersUp] = useState<string[]>(start.result?.runnersUp ?? []);
   const [champPhoto, setChampPhoto] = useState<File | null>(null);
   const [runnerPhoto, setRunnerPhoto] = useState<File | null>(null);
   const [groupPhoto, setGroupPhoto] = useState<File | null>(null);
@@ -299,8 +413,9 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
         runnerPhoto ? uploadWinnerPhoto(runnerPhoto) : Promise.resolve(null),
         groupPhoto ? uploadWinnerPhoto(groupPhoto) : Promise.resolve(null),
       ]);
+      const title = start.test ? `${TEST_PREFIX}${name.trim().replace(TEST_PREFIX, '')}` : name.trim();
       const { error } = await supabase.from('tournament_winners').insert({
-        tournament_name: name.trim(),
+        tournament_name: title,
         played_month: month,
         champions,
         runners_up: runnersUp,
@@ -311,7 +426,8 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
       });
       if (error) throw error;
       // Let the whole club know (fire-and-forget; a push failure never blocks saving).
-      notifyTournamentWinners(name.trim(), champions, !!(cp || rp || gp));
+      // Test entries never notify anyone.
+      if (!start.test) notifyTournamentWinners(name.trim(), champions, !!(cp || rp || gp));
       onSaved();
     } catch (e) {
       onError(e instanceof Error && e.message.startsWith('Photo') ? e.message : "Couldn't save. Try again.");
@@ -323,9 +439,14 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
   return (
     <div className="rounded-2xl p-4 mb-4 border" style={{ background: 'rgba(15,18,20,0.97)', borderColor: 'rgba(250,204,21,0.4)' }}>
       <div className="flex items-center justify-between mb-3">
-        <div className="text-base font-bold text-white">Add tournament winners</div>
+        <div className="text-base font-bold text-white">{start.test ? 'Test winners entry' : 'Add tournament winners'}</div>
         <button onClick={onCancel} aria-label="Close" className="text-slate-400"><X size={18} /></button>
       </div>
+      {start.note && (
+        <p className={`text-xs mb-3 rounded-lg px-3 py-2 ${start.test ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[0.05] text-slate-300'}`}>
+          {start.note}{start.test ? " It won't notify anyone. Remove it with Reset tests." : ''}
+        </p>
+      )}
 
       <label className="block text-xs text-slate-400 mb-1">Tournament name</label>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Winter Cup"
@@ -356,7 +477,7 @@ function AddWinnerForm({ clubPlayers, onCancel, onSaved, onError }: {
       <button onClick={save} disabled={!canSave}
         className="w-full py-3 rounded-xl text-sm font-bold disabled:opacity-40 mt-1"
         style={{ background: GOLD, color: '#1a1300' }}>
-        {saving ? 'Saving…' : 'Save'}
+        {saving ? 'Saving…' : start.test ? 'Save test entry' : 'Save'}
       </button>
     </div>
   );
